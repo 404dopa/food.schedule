@@ -60,10 +60,7 @@ export const RecipesTab: React.FC = () => {
       {/* Header and Add Button */}
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <h2 className="text-base sm:text-lg font-extrabold text-gray-900 dark:text-white truncate">الوصفات والأكلات</h2>
-          <p className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">
-            كتيب الطبخ ومكونات الأكلات وتكلفتها
-          </p>
+          <h2 className="text-base sm:text-lg font-extrabold text-gray-900 dark:text-white truncate">الوصفات</h2>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <button
@@ -79,7 +76,7 @@ export const RecipesTab: React.FC = () => {
             className="flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-brand-600 hover:bg-brand-700 text-white text-[11px] sm:text-xs font-bold rounded-xl sm:rounded-2xl shadow-md shadow-brand-600/20 transition-all active:scale-95 whitespace-nowrap shrink-0"
           >
             <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-            <span>وصفة جديدة</span>
+            <span>وصفة</span>
           </button>
         </div>
       </div>

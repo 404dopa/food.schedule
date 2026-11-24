@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { AppProvider, useApp } from './context/AppContext';
+import React, { useEffect, useRef, useState } from 'react';
+import { AppProvider, useApp, MainTab } from './context/AppContext';
 import { Header } from './components/layout/Header';
 import { BottomNavigation } from './components/layout/BottomNavigation';
 import { ToastContainer } from './components/common/ToastContainer';
@@ -32,15 +32,29 @@ import { AlertModal } from './components/common/AlertModal';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { getSession, BaytiSession } from './services/session';
 
-const AppContent: React.FC = () => {
-  const { currentTab, activeSheet, closeSheet, alertModal, closeAlert, triggerRefresh, refreshKey } = useApp();
+const TAB_ORDER: MainTab[] = ['home', 'schedule', 'kitchen', 'shopping', 'recipes'];
 
-  // 1. Configure browser scroll restoration
+const AppContent: React.FC = () => {
+  const { currentTab, setCurrentTab, enabledTabs, activeSheet, closeSheet, alertModal, closeAlert, triggerRefresh, refreshKey } = useApp();
+  const touchStartRef = useRef<{ x: number; y: number; time: number; blocked: boolean } | null>(null);
+
+  // 1. Configure browser scroll restoration & compact mobile font scale for non-home tabs
   useEffect(() => {
     if (typeof window !== 'undefined' && 'scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual';
     }
   }, []);
+
+  useEffect(() => {
+    if (currentTab !== 'home') {
+      document.documentElement.classList.add('compact-mobile');
+    } else {
+      document.documentElement.classList.remove('compact-mobile');
+    }
+    return () => {
+      document.documentElement.classList.remove('compact-mobile');
+    };
+  }, [currentTab]);
 
   // 2. Debounced scroll position save for the current tab
   useEffect(() => {
@@ -179,10 +193,54 @@ const AppContent: React.FC = () => {
 
   const { title, subtitle } = getSheetHeader();
 
+  const handleTouchStart = (e: React.TouchEvent<HTMLElement>) => {
+    if (activeSheet !== null || e.touches.length !== 1) {
+      touchStartRef.current = null;
+      return;
+    }
+    const target = e.target as HTMLElement | null;
+    const isBlocked =
+      !!target?.closest('input, textarea, select, .overflow-x-auto, .no-scrollbar');
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      time: Date.now(),
+      blocked: isBlocked,
+    };
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLElement>) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start || start.blocked || activeSheet !== null || e.changedTouches.length !== 1) {
+      return;
+    }
+
+    const dx = e.changedTouches[0].clientX - start.x;
+    const dy = e.changedTouches[0].clientY - start.y;
+    const dt = Date.now() - start.time;
+
+    if (dt < 550 && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      const visibleTabs = TAB_ORDER.filter((t) => enabledTabs[t]);
+      const idx = visibleTabs.indexOf(currentTab);
+      if (idx === -1) return;
+
+      // In RTL layout, tabs go right-to-left: swiping right reveals the next tab on the left
+      const nextIdx = dx > 0 ? idx + 1 : idx - 1;
+      if (nextIdx >= 0 && nextIdx < visibleTabs.length) {
+        setCurrentTab(visibleTabs[nextIdx]);
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-gray-50 dark:bg-gray-950 flex flex-col transition-colors duration-200 overscroll-none">
       {/* Main Content Area */}
-      <main className="flex-1 px-4 pt-4 pb-6 safe-top max-w-2xl mx-auto w-full overflow-x-hidden">
+      <main
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        className="flex-1 px-4 pt-4 pb-6 safe-top max-w-2xl mx-auto w-full overflow-x-hidden"
+      >
         {currentTab === 'home' && <HomeTab />}
         {currentTab === 'schedule' && <ScheduleTab />}
         {currentTab === 'kitchen' && <KitchenTab />}

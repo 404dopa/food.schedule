@@ -285,11 +285,8 @@ export const ShoppingTab: React.FC = () => {
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-base sm:text-lg font-extrabold text-gray-900 dark:text-white truncate">
-            احتياجات التسوق
+            التسوق
           </h2>
-          <p className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">
-            حساب كميات المواد المطلوبة حسب أسبوع الطبخ
-          </p>
         </div>
 
         {/* Copy List Button */}
