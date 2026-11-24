@@ -282,12 +282,12 @@ export const ShoppingTab: React.FC = () => {
   return (
     <div className="space-y-3 pb-24 max-w-2xl mx-auto">
       {/* Top Header: Title and Copy Button */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-extrabold text-gray-900 dark:text-white">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-base sm:text-lg font-extrabold text-gray-900 dark:text-white truncate">
             احتياجات التسوق
           </h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">
             حساب كميات المواد المطلوبة حسب أسبوع الطبخ
           </p>
         </div>
@@ -297,10 +297,10 @@ export const ShoppingTab: React.FC = () => {
           type="button"
           onClick={handleCopyList}
           disabled={shoppingItems.length === 0}
-          className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-xs font-bold rounded-2xl shadow-md shadow-brand-600/20 transition-all active:scale-95"
+          className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-[11px] sm:text-xs font-bold rounded-xl sm:rounded-2xl shadow-md shadow-brand-600/20 transition-all active:scale-95 whitespace-nowrap shrink-0"
           title="نسخ القائمة للمشاركة"
         >
-          {copied ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4" />}
+          {copied ? <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white shrink-0" /> : <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />}
           <span>{copied ? 'تم النسخ' : 'نسخ القائمة'}</span>
         </button>
       </div>

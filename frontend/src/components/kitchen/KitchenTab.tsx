@@ -167,24 +167,24 @@ export const KitchenTab: React.FC = () => {
   return (
     <div className="space-y-4 pb-24 max-w-2xl mx-auto">
       {/* Header and Add Buttons */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-extrabold text-gray-900 dark:text-white">المكونات</h2>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-base sm:text-lg font-extrabold text-gray-900 dark:text-white truncate">المكونات</h2>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => openSheet('manage_ingredient_groups')}
-            className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-750 text-gray-700 dark:text-gray-200 text-xs font-bold rounded-2xl border border-gray-200 dark:border-gray-700 transition-all active:scale-95 shadow-sm"
+            className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-750 text-gray-700 dark:text-gray-200 text-[11px] sm:text-xs font-bold rounded-xl sm:rounded-2xl border border-gray-200 dark:border-gray-700 transition-all active:scale-95 shadow-sm whitespace-nowrap shrink-0"
             title="إضافة وإدارة مجموعات المكونات"
           >
-            <FolderPlus className="w-4 h-4 text-brand-600 dark:text-brand-400" />
+            <FolderPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-brand-600 dark:text-brand-400 shrink-0" />
             <span>إضافة مجموعة</span>
           </button>
           <button
             onClick={() => openSheet('add_ingredient')}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-brand-600/20 transition-all active:scale-95"
+            className="flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-brand-600 hover:bg-brand-700 text-white text-[11px] sm:text-xs font-bold rounded-xl sm:rounded-2xl shadow-md shadow-brand-600/20 transition-all active:scale-95 whitespace-nowrap shrink-0"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
             <span>مكون جديد</span>
           </button>
         </div>

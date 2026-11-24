@@ -57,7 +57,7 @@ export const BottomNavigation: React.FC = () => {
       aria-label="شريط التنقل الرئيسي"
       className="fixed inset-x-0 bottom-3 sm:bottom-4 z-40 flex justify-center px-3 pointer-events-none select-none"
     >
-      <div className="pointer-events-auto w-full max-w-md relative px-2 py-1.5 rounded-[28px] bg-white/75 dark:bg-gray-900/75 backdrop-blur-2xl backdrop-saturate-180 border border-white/70 dark:border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.12),0_4px_12px_rgba(0,0,0,0.06),inset_0_1px_1.5px_rgba(255,255,255,0.9)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.6),inset_0_1px_1px_rgba(255,255,255,0.12)] flex items-center justify-around transition-all">
+      <div className="pointer-events-auto w-full max-w-md relative px-2 py-1.5 rounded-[28px] bg-white/92 dark:bg-gray-900/92 backdrop-blur-md border border-gray-200/80 dark:border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.10)] dark:shadow-[0_12px_28px_rgba(0,0,0,0.5)] flex items-center justify-around">
         {visibleNavItems.map((item) => {
           const isActive = currentTab === item.id;
           const Icon = item.icon;

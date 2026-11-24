@@ -42,9 +42,9 @@ const AppContent: React.FC = () => {
     }
   }, []);
 
-  // 2. Continually save scroll position for the current tab
+  // 2. Debounced scroll position save for the current tab
   useEffect(() => {
-    let ticking = false;
+    let scrollTimer: ReturnType<typeof setTimeout> | null = null;
     const saveCurrentScroll = () => {
       const y = window.scrollY;
       sessionStorage.setItem(`bayti_scroll_${currentTab}`, y.toString());
@@ -52,13 +52,8 @@ const AppContent: React.FC = () => {
     };
 
     const handleScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          saveCurrentScroll();
-          ticking = false;
-        });
-        ticking = true;
-      }
+      if (scrollTimer) clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(saveCurrentScroll, 250);
     };
 
     const handleBeforeUnload = () => {
@@ -69,6 +64,7 @@ const AppContent: React.FC = () => {
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
+      if (scrollTimer) clearTimeout(scrollTimer);
       saveCurrentScroll();
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('beforeunload', handleBeforeUnload);

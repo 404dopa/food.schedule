@@ -303,19 +303,22 @@ export const AppProvider: React.FC<{
 
     connectSSE();
 
-    // Auto refresh when tab/browser comes back into view or focus
+    // Auto refresh when app becomes visible again (throttled for smooth mobile performance)
+    let lastRefreshAt = Date.now();
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        triggerRefresh();
+        const now = Date.now();
+        if (now - lastRefreshAt > 5000) {
+          lastRefreshAt = now;
+          triggerRefresh();
+        }
+        if (!eventSource) {
+          connectSSE();
+        }
       }
     };
 
-    const handleWindowFocus = () => {
-      triggerRefresh();
-    };
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleWindowFocus);
 
     return () => {
       if (eventSource) {
@@ -325,7 +328,6 @@ export const AppProvider: React.FC<{
         clearTimeout(reconnectTimer);
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleWindowFocus);
     };
   }, []);
 
