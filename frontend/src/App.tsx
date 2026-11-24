@@ -311,6 +311,15 @@ const AppContent: React.FC = () => {
 export default function App() {
   const [session, setSession] = useState<BaytiSession | null>(() => getSession());
 
+  useEffect(() => {
+    const saved = localStorage.getItem('bayti_theme');
+    if (saved === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+
   const handleLogin = () => {
     setSession(getSession());
   };

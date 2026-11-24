@@ -254,6 +254,21 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
         <p className="mt-5 text-[11px] text-gray-400 dark:text-gray-600 text-center font-medium max-w-xs">
           يتزامن كل أفراد العائلة بنفس الرمز تلقائياً على جميع الأجهزة
         </p>
+
+        {/* Developer Credit */}
+        <div className="mt-3 pb-2 text-center">
+          <a
+            href="https://www.instagram.com/3d2000"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50/60 dark:hover:bg-brand-950/30 transition-all"
+          >
+            <span>المطور :</span>
+            <span dir="ltr" className="font-mono font-extrabold text-brand-600 dark:text-brand-400">
+              3d2000
+            </span>
+          </a>
+        </div>
       </div>
     </div>
   );
