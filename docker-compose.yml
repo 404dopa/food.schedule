@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bayti_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+      POSTGRES_DB: ${DB_NAME:-bayti_kitchen}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-bayti_kitchen}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bayti_network
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: bayti_backend
+    restart: always
+    environment:
+      PORT: 8080
+      APP_ENV: production
+      DB_TYPE: ${DB_TYPE:-postgres} # 'postgres' or 'sqlite'
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres123}
+      DB_NAME: ${DB_NAME:-bayti_kitchen}
+      DB_SSLMODE: disable
+      DB_FILE: /app/data/bayti_kitchen.db
+      JWT_SECRET: ${JWT_SECRET:-bayti-secret-key-production-2026}
+      CORS_ORIGIN: "*"
+    ports:
+      - "8080:8080"
+    volumes:
+      - sqlite_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - bayti_network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: bayti_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - bayti_network
+
+volumes:
+  postgres_data:
+    name: bayti_postgres_data
+  sqlite_data:
+    name: bayti_sqlite_data
+
+networks:
+  bayti_network:
+    name: bayti_network
+    driver: bridge
