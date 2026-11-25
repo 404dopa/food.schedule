@@ -115,6 +115,34 @@ export const HomeTab: React.FC = () => {
     loadDayMeals(allTwoDayItems.length === 0);
   }, [refreshKey]);
 
+  // Instant 0ms sync when meal status changes inside RecipeDetailSheet
+  useEffect(() => {
+    const onMealUpdated = (e: Event) => {
+      const detail = (e as CustomEvent<{ id: string; is_prepared: boolean; is_skipped: boolean }>).detail;
+      if (!detail) return;
+      setAllTwoDayItems((prev) => {
+        const next = prev.map((it) =>
+          it.id === detail.id
+            ? { ...it, is_prepared: detail.is_prepared, is_skipped: detail.is_skipped }
+            : it
+        );
+        const todayOnly = next.filter((it) => it.plan_date === todayStr);
+        if (
+          activeDateStr === todayStr &&
+          todayOnly.length > 0 &&
+          todayOnly.every((it) => it.is_prepared || it.is_skipped) &&
+          autoSwitchedForDateRef.current !== todayStr
+        ) {
+          autoSwitchedForDateRef.current = todayStr;
+          setSelectedDayMode('tomorrow');
+        }
+        return next;
+      });
+    };
+    window.addEventListener('bayti:meal-updated', onMealUpdated);
+    return () => window.removeEventListener('bayti:meal-updated', onMealUpdated);
+  }, [activeDateStr, todayStr]);
+
   const isDaySkipped = todayItems.length > 0 && todayItems.every((it) => it.is_skipped);
 
   const handleToggleSkipDay = async () => {

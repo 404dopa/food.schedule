@@ -63,6 +63,15 @@ export const RecipeDetailSheet: React.FC<Props> = ({ recipe, mealItem, onSuccess
     }
   };
 
+  const notifyMealUpdated = (is_prepared: boolean, is_skipped: boolean) => {
+    if (!mealItem) return;
+    window.dispatchEvent(
+      new CustomEvent('bayti:meal-updated', {
+        detail: { id: mealItem.id, is_prepared, is_skipped },
+      })
+    );
+  };
+
   const handleToggleSkipMeal = async () => {
     if (!mealItem || isMutating) return;
     if (isPrepared) {
@@ -74,6 +83,7 @@ export const RecipeDetailSheet: React.FC<Props> = ({ recipe, mealItem, onSuccess
     setIsSkipped(nextSkipped);
     mealItem.is_skipped = nextSkipped;
     mealItem.is_prepared = false;
+    notifyMealUpdated(false, nextSkipped);
     try {
       await api.updateMealPlanItem(mealItem.id, {
         ...mealItem,
@@ -81,10 +91,10 @@ export const RecipeDetailSheet: React.FC<Props> = ({ recipe, mealItem, onSuccess
         is_skipped: nextSkipped,
       });
       triggerRefresh();
-      onSuccess?.();
     } catch (err: any) {
       setIsSkipped(!nextSkipped);
       mealItem.is_skipped = !nextSkipped;
+      notifyMealUpdated(false, !nextSkipped);
       showToast(err.message || 'فشل تغيير حالة التخطي', 'error');
     } finally {
       setIsSkipping(false);
@@ -98,15 +108,16 @@ export const RecipeDetailSheet: React.FC<Props> = ({ recipe, mealItem, onSuccess
     setIsSkipped(false);
     mealItem.is_prepared = true;
     mealItem.is_skipped = false;
+    notifyMealUpdated(true, false);
     setIsPreparing(true);
     try {
       await api.prepareMeal(mealItem.id);
       showToast(`تم تحضير وجبة "${recipe.name_ar}" وخصم المواد بنجاح`, 'success');
       triggerRefresh();
-      onSuccess?.();
     } catch (err: any) {
       setIsPrepared(false);
       mealItem.is_prepared = false;
+      notifyMealUpdated(false, false);
       showToast(err.message || 'فشل تحضير الوجبة', 'error');
     } finally {
       setIsPreparing(false);
@@ -118,15 +129,16 @@ export const RecipeDetailSheet: React.FC<Props> = ({ recipe, mealItem, onSuccess
     // Optimistic update for instant response
     setIsPrepared(false);
     mealItem.is_prepared = false;
+    notifyMealUpdated(false, false);
     setIsPreparing(true);
     try {
       await api.unprepareMeal(mealItem.id);
       showToast(`تم التراجع عن تحضير "${recipe.name_ar}" واستعادة المواد بنجاح`, 'info');
       triggerRefresh();
-      onSuccess?.();
     } catch (err: any) {
       setIsPrepared(true);
       mealItem.is_prepared = true;
+      notifyMealUpdated(true, false);
       showToast(err.message || 'فشل التراجع عن التحضير', 'error');
     } finally {
       setIsPreparing(false);
