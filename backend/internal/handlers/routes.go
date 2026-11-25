@@ -32,15 +32,27 @@ func SetupRouter(cfg *config.Config, h *AppHandler) *gin.Engine {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// Static uploads directory (persistent Volume)
+	// Static uploads directory (persistent Volume) — immutable UUID filenames cached by browser
 	if cfg.UploadDir != "" {
 		_ = os.MkdirAll(cfg.UploadDir, 0755)
-		r.Static("/uploads", cfg.UploadDir)
+		uploadsGroup := r.Group("/uploads")
+		uploadsGroup.Use(func(c *gin.Context) {
+			c.Header("Cache-Control", "public, max-age=31536000, immutable")
+			c.Next()
+		})
+		uploadsGroup.Static("/", cfg.UploadDir)
 	}
 
 	r.GET("/health", h.HealthCheck)
 
 	api := r.Group("/api")
+	// Never cache dynamic API data in browsers or proxies
+	api.Use(func(c *gin.Context) {
+		c.Header("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+		c.Header("Pragma", "no-cache")
+		c.Header("Expires", "0")
+		c.Next()
+	})
 	{
 		// Real-time Multi-Device Sync Stream
 		api.GET("/events", h.StreamEvents)
@@ -133,7 +145,13 @@ func SetupRouter(cfg *config.Config, h *AppHandler) *gin.Engine {
 		if _, err := os.Stat(indexHTML); err == nil {
 			assetsDir := filepath.Join(cfg.StaticDir, "assets")
 			if fi, err := os.Stat(assetsDir); err == nil && fi.IsDir() {
-				r.Static("/assets", assetsDir)
+				assetsGroup := r.Group("/assets")
+				assetsGroup.Use(func(c *gin.Context) {
+					// Cache hashed app shell assets (JS/CSS) in browsers for fast startup
+					c.Header("Cache-Control", "public, max-age=31536000, immutable")
+					c.Next()
+				})
+				assetsGroup.Static("/", assetsDir)
 			}
 			r.StaticFile("/favicon.ico", filepath.Join(cfg.StaticDir, "favicon.ico"))
 
@@ -144,6 +162,7 @@ func SetupRouter(cfg *config.Config, h *AppHandler) *gin.Engine {
 					c.JSON(http.StatusNotFound, gin.H{"error": "route not found"})
 					return
 				}
+				c.Header("Cache-Control", "no-cache")
 				c.File(indexHTML)
 			})
 		}

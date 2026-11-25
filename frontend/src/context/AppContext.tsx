@@ -220,37 +220,30 @@ export const AppProvider: React.FC<{
       return;
     }
     setNetworkStatus('syncing');
-    try {
-      const res = await api.syncOfflineQueue();
-      if (res.success > 0) {
-        showToast(`تمت مزامنة ${res.success} عملية بنجاح!`, 'success');
-        triggerRefresh();
-      }
-      setNetworkStatus('online');
-    } catch (e) {
-      setNetworkStatus('online');
-    }
+    triggerRefresh();
+    setNetworkStatus('online');
   };
 
-  // Listen to network changes
+  // Clear any legacy IndexedDB cache once on mount & listen to network changes
   useEffect(() => {
+    try {
+      if (typeof indexedDB !== 'undefined') {
+        indexedDB.deleteDatabase('bayti_kitchen_offline_db');
+      }
+    } catch (_) {}
+
     const handleOnline = () => {
       setNetworkStatus('online');
-      showToast('تمت استعادة الاتصال بالإنترنت - جاري المزامنة', 'info');
-      syncNow();
+      showToast('تمت استعادة الاتصال بالإنترنت', 'info');
+      triggerRefresh();
     };
     const handleOffline = () => {
       setNetworkStatus('offline');
-      showToast('انقطع الاتصال بالإنترنت - يتم العمل في الوضع دون اتصال', 'warning');
+      showToast('انقطع الاتصال بالإنترنت', 'warning');
     };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
-    // Initial sync
-    if (navigator.onLine) {
-      syncNow();
-    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
