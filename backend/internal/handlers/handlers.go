@@ -586,8 +586,8 @@ func (h *AppHandler) AddMealPlanItem(c *gin.Context) {
 	// "وياخذ الاكله المضافه من اقرب يوم قادم ويضع مكانها الوجبه المستبدله (في حالة وصول عدد الوجبات من هذا الايتم للحد الاقصى خلال الشهر)"
 	t, parseErr := time.Parse("2006-01-02", item.PlanDate)
 	if parseErr == nil {
-		startOfMonth := time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
-		endOfMonth := time.Date(t.Year(), t.Month()+1, 0, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
+		startOfMonth := time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.Local).Format("2006-01-02")
+		endOfMonth := time.Date(t.Year(), t.Month()+1, 0, 0, 0, 0, 0, time.Local).Format("2006-01-02")
 
 		monthItems, _ := h.mealPlanRepo.GetItemsByDateRange(householdID, startOfMonth, endOfMonth)
 
@@ -918,7 +918,7 @@ func (h *AppHandler) GetMonthlySchedule(c *gin.Context) {
 		year, _ := strconv.Atoi(yearStr)
 		month, _ := strconv.Atoi(monthStr)
 		if year > 2000 && month >= 1 && month <= 12 {
-			daysInMonth := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0, time.UTC).Day()
+			daysInMonth := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0, time.Local).Day()
 			c.JSON(http.StatusOK, gin.H{
 				"year":          year,
 				"month":         month,

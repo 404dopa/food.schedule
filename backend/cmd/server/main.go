@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
 	"bayti-kitchen/backend/internal/config"
 	"bayti-kitchen/backend/internal/handlers"
@@ -12,7 +13,14 @@ import (
 )
 
 func main() {
-	log.Println("Starting Bayti Kitchen Backend Service...")
+	// Set global timezone to Asia/Baghdad (UTC+3)
+	baghdadLoc, tzErr := time.LoadLocation("Asia/Baghdad")
+	if tzErr != nil {
+		baghdadLoc = time.FixedZone("Asia/Baghdad", 3*60*60)
+	}
+	time.Local = baghdadLoc
+
+	log.Println("Starting Bayti Kitchen Backend Service (Timezone: Asia/Baghdad UTC+3)...")
 
 	cfg := config.LoadConfig()
 

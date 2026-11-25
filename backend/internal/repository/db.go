@@ -26,7 +26,7 @@ func NewDatabase(cfg *config.Config) (*Database, error) {
 		if cfg.DatabaseURL != "" {
 			dialector = postgres.Open(cfg.DatabaseURL)
 		} else {
-			dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=UTC",
+			dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=Asia/Baghdad",
 				cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBPort, cfg.DBSSLMode)
 			dialector = postgres.Open(dsn)
 		}
@@ -40,7 +40,7 @@ func NewDatabase(cfg *config.Config) (*Database, error) {
 	gormConfig := &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 		NowFunc: func() time.Time {
-			return time.Now().UTC()
+			return time.Now()
 		},
 	}
 

@@ -43,6 +43,7 @@ ENV PORT=8080
 ENV APP_ENV=production
 ENV UPLOAD_DIR=/app/uploads
 ENV STATIC_DIR=/app/dist
+ENV TZ=Asia/Baghdad
 
 EXPOSE 8080
 

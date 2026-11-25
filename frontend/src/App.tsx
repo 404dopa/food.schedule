@@ -37,6 +37,31 @@ const TAB_ORDER: MainTab[] = ['home', 'schedule', 'kitchen', 'shopping', 'recipe
 const AppContent: React.FC = () => {
   const { currentTab, setCurrentTab, enabledTabs, activeSheet, closeSheet, alertModal, closeAlert, triggerRefresh, refreshKey } = useApp();
   const touchStartRef = useRef<{ x: number; y: number; time: number; blocked: boolean } | null>(null);
+  const [mountedTabs, setMountedTabs] = useState<Record<MainTab, boolean>>(() => ({
+    home: currentTab === 'home',
+    schedule: currentTab === 'schedule',
+    kitchen: currentTab === 'kitchen',
+    shopping: currentTab === 'shopping',
+    recipes: currentTab === 'recipes',
+  }));
+
+  // Ensure current tab is mounted and preload remaining enabled tabs in background for instant 0ms switching
+  useEffect(() => {
+    setMountedTabs((prev) => (prev[currentTab] ? prev : { ...prev, [currentTab]: true }));
+  }, [currentTab]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMountedTabs({
+        home: true,
+        schedule: enabledTabs.schedule,
+        kitchen: enabledTabs.kitchen,
+        shopping: enabledTabs.shopping,
+        recipes: enabledTabs.recipes,
+      });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [enabledTabs]);
 
   // 1. Configure browser scroll restoration & compact mobile font scale for non-home tabs
   useEffect(() => {
@@ -241,11 +266,31 @@ const AppContent: React.FC = () => {
         onTouchEnd={handleTouchEnd}
         className="flex-1 px-4 pt-4 pb-6 safe-top max-w-2xl mx-auto w-full overflow-x-hidden"
       >
-        {currentTab === 'home' && <HomeTab />}
-        {currentTab === 'schedule' && <ScheduleTab />}
-        {currentTab === 'kitchen' && <KitchenTab />}
-        {currentTab === 'shopping' && <ShoppingTab />}
-        {currentTab === 'recipes' && <RecipesTab />}
+        {mountedTabs.home && (
+          <div className={currentTab === 'home' ? 'block' : 'hidden'}>
+            <HomeTab />
+          </div>
+        )}
+        {mountedTabs.schedule && (
+          <div className={currentTab === 'schedule' ? 'block' : 'hidden'}>
+            <ScheduleTab />
+          </div>
+        )}
+        {mountedTabs.kitchen && (
+          <div className={currentTab === 'kitchen' ? 'block' : 'hidden'}>
+            <KitchenTab />
+          </div>
+        )}
+        {mountedTabs.shopping && (
+          <div className={currentTab === 'shopping' ? 'block' : 'hidden'}>
+            <ShoppingTab />
+          </div>
+        )}
+        {mountedTabs.recipes && (
+          <div className={currentTab === 'recipes' ? 'block' : 'hidden'}>
+            <RecipesTab />
+          </div>
+        )}
       </main>
 
       {/* Fixed Bottom Navigation */}

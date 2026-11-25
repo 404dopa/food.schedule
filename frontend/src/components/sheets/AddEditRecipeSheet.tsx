@@ -108,8 +108,8 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
   const addIngredientRow = () => {
     if (allIngredients.length === 0) return;
     const defaultIng = allIngredients[0];
-    setIngredientsList([
-      ...ingredientsList,
+    setIngredientsList((prev) => [
+      ...prev,
       {
         ingredient_id: defaultIng.id,
         quantity: 1,
@@ -120,21 +120,23 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
   };
 
   const removeIngredientRow = (index: number) => {
-    setIngredientsList(ingredientsList.filter((_, i) => i !== index));
+    setIngredientsList((prev) => prev.filter((_, i) => i !== index));
   };
 
   const updateIngredientRow = (index: number, field: keyof RecipeIngredient, value: any) => {
-    const updated = [...ingredientsList];
-    updated[index] = { ...updated[index], [field]: value };
+    setIngredientsList((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
 
-    // If ingredient changed, auto-set default unit
-    if (field === 'ingredient_id') {
-      const selected = allIngredients.find((i) => i.id === value);
-      if (selected) {
-        updated[index].unit_id = selected.default_unit_id;
+      // If ingredient changed, auto-set default unit
+      if (field === 'ingredient_id') {
+        const selected = allIngredients.find((i) => i.id === value);
+        if (selected) {
+          updated[index].unit_id = selected.default_unit_id;
+        }
       }
-    }
-    setIngredientsList(updated);
+      return updated;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -234,7 +236,7 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
                 لم تتم إضافة أي مقادير بعد. اضغط "إضافة مكون" لإدخال المقادير المطلوبة.
               </div>
             ) : (
-              <div className="space-y-2 max-h-72 sm:max-h-80 overflow-y-auto pl-1">
+              <div className="space-y-2 pl-1">
                 {ingredientsList.map((ri, index) => (
                   <div
                     key={index}

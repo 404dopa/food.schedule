@@ -122,24 +122,23 @@ func (r *RecipeRepository) CreateRecipe(recipe *models.Recipe) error {
 			recipe.Ingredients[i].ID = uuid.NewString()
 		}
 	}
-	return r.db.Create(recipe).Error
+	return r.db.Omit("Group", "Ingredients.Ingredient", "Ingredients.Unit").Create(recipe).Error
 }
 
 func (r *RecipeRepository) UpdateRecipe(recipe *models.Recipe) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(recipe).Error; err != nil {
+		// Save only the recipe fields; manage Ingredients explicitly below
+		if err := tx.Omit("Ingredients", "Group").Save(recipe).Error; err != nil {
 			return err
 		}
-		// Delete existing recipe ingredients and recreate them
-		if err := tx.Where("recipe_id = ?", recipe.ID).Delete(&models.RecipeIngredient{}).Error; err != nil {
+		// Hard-delete existing recipe ingredients and recreate them cleanly
+		if err := tx.Unscoped().Where("recipe_id = ?", recipe.ID).Delete(&models.RecipeIngredient{}).Error; err != nil {
 			return err
 		}
 		for i := range recipe.Ingredients {
 			recipe.Ingredients[i].RecipeID = recipe.ID
-			if recipe.Ingredients[i].ID == "" {
-				recipe.Ingredients[i].ID = uuid.NewString()
-			}
-			if err := tx.Create(&recipe.Ingredients[i]).Error; err != nil {
+			recipe.Ingredients[i].ID = uuid.NewString()
+			if err := tx.Omit("Ingredient", "Unit").Create(&recipe.Ingredients[i]).Error; err != nil {
 				return err
 			}
 		}
