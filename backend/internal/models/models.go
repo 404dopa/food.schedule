@@ -138,6 +138,10 @@ type Recipe struct {
 	Servings     int                `gorm:"not null;default:0" json:"servings"`
 	PrepTimeMin  int                `gorm:"default:0" json:"prep_time_min"`
 	CookTimeMin  int                `gorm:"default:0" json:"cook_time_min"`
+	ForBreakfast bool               `gorm:"default:false" json:"for_breakfast"`
+	ForLunch     bool               `gorm:"default:false" json:"for_lunch"`
+	ForDinner    bool               `gorm:"default:false" json:"for_dinner"`
+	ForSnack     bool               `gorm:"default:false" json:"for_snack"`
 	Ingredients  []RecipeIngredient `gorm:"foreignKey:RecipeID" json:"ingredients,omitempty"`
 	TotalCost    float64            `gorm:"-" json:"total_cost"` // Computed field
 	CostPerServe float64            `gorm:"-" json:"cost_per_serving"`

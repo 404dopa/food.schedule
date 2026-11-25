@@ -302,8 +302,8 @@ export const ShoppingTab: React.FC = () => {
         </button>
       </div>
 
-      {/* Compact Week Periods Selector: الأسبوع 1 ، الأسبوع 2 ، الأسبوع 3 ، الأسبوع 4 (صغيرة وبدون تاريخ) */}
-      <div className="grid grid-cols-4 gap-1.5 p-1 bg-gray-100 dark:bg-gray-800/80 rounded-2xl border border-gray-200/80 dark:border-gray-750">
+      {/* Week Periods Selector: الأسبوع 1 ، الأسبوع 2 ، الأسبوع 3 ، الأسبوع 4 */}
+      <div className="grid grid-cols-4 gap-1.5 p-1.5 bg-gray-100 dark:bg-gray-800/80 rounded-2xl border border-gray-200/80 dark:border-gray-750">
         {periods.map((p) => {
           const isSelected = selectedPeriodIdx === p.id;
           const isTodayInThisPeriod = currentWeekIndex === p.id;
@@ -313,7 +313,7 @@ export const ShoppingTab: React.FC = () => {
               key={p.id}
               type="button"
               onClick={() => setSelectedPeriodIdx(p.id)}
-              className={`py-2 px-1 rounded-xl text-xs font-black text-center transition-all relative active:scale-95 flex items-center justify-center gap-1 ${
+              className={`py-3 min-h-[44px] px-1.5 rounded-xl text-xs sm:text-sm font-black text-center transition-all relative active:scale-95 flex items-center justify-center gap-1 ${
                 isSelected
                   ? 'bg-brand-600 text-white shadow-sm'
                   : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'

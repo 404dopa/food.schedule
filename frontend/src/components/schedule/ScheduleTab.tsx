@@ -1,15 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
-import { MonthlyScheduleItem } from '../../types';
+import { MealSlot, MonthlyScheduleItem, Recipe, RecipeGroup } from '../../types';
+import { Sparkles, X, Loader2 } from 'lucide-react';
+
+const slotLabels: { id: MealSlot; label: string }[] = [
+  { id: 'breakfast', label: 'فطور' },
+  { id: 'lunch', label: 'غداء' },
+  { id: 'dinner', label: 'عشاء' },
+  { id: 'snack', label: 'سناك' },
+];
 
 export const ScheduleTab: React.FC = () => {
-  const { openSheet, refreshKey } = useApp();
+  const { openSheet, refreshKey, triggerRefresh, showToast } = useApp();
   const today = new Date();
   const [currentYear] = useState<number>(today.getFullYear());
   const [currentMonth] = useState<number>(today.getMonth() + 1); // 1-12
   const [items, setItems] = useState<MonthlyScheduleItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  const [showDistributeModal, setShowDistributeModal] = useState(false);
+  const [distSlot, setDistSlot] = useState<MealSlot>('lunch');
+  const [distGroupId, setDistGroupId] = useState<string>('');
+  const [groups, setGroups] = useState<RecipeGroup[]>([]);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [distributing, setDistributing] = useState(false);
 
   // Compute days in this month
   const daysInCurrentMonth = new Date(currentYear, currentMonth, 0).getDate();
@@ -41,16 +56,79 @@ export const ScheduleTab: React.FC = () => {
     today.getFullYear() === currentYear && today.getMonth() + 1 === currentMonth;
   const todayDateNum = today.getDate();
 
+  const handleOpenDistribute = () => {
+    setShowDistributeModal(true);
+    if (groups.length === 0) {
+      api.getRecipeGroups().then(setGroups).catch(() => {});
+    }
+    api.getRecipes().then(setRecipes).catch(() => {});
+  };
+
+  const matchingRecipes = recipes.filter((r) => {
+    if (r.servings <= 0) return false;
+    if (distGroupId && r.group_id !== distGroupId) return false;
+    switch (distSlot) {
+      case 'breakfast':
+        return !!r.for_breakfast;
+      case 'lunch':
+        return !!r.for_lunch;
+      case 'dinner':
+        return !!r.for_dinner;
+      case 'snack':
+        return !!r.for_snack;
+      default:
+        return false;
+    }
+  });
+
+  const handleConfirmDistribute = async () => {
+    setDistributing(true);
+    try {
+      const res = await api.autoDistributeSchedule(
+        distSlot,
+        currentYear,
+        currentMonth,
+        distGroupId
+      );
+      setItems(res.items || []);
+      setShowDistributeModal(false);
+      triggerRefresh();
+      const slotName = slotLabels.find((s) => s.id === distSlot)?.label || distSlot;
+      showToast(`تم التوزيع الذكي لوجبة ${slotName} على ${res.assigned_count} يوم بنجاح`, 'success');
+    } catch (err: any) {
+      showToast(err.message || 'فشل التوزيع التلقائي', 'error');
+    } finally {
+      setDistributing(false);
+    }
+  };
+
   return (
-    <div className="space-y-4 pt-2 pb-24 max-w-2xl mx-auto">
-      {/* Calendar Days Grid (4 columns across mobile) */}
+    <div className="space-y-4 pb-24 max-w-2xl mx-auto">
+      {/* Header and Smart Distribute Button */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-base sm:text-lg font-extrabold text-gray-900 dark:text-white truncate">
+            الجدول
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={handleOpenDistribute}
+          className="flex items-center gap-1.5 px-3 py-1.5 sm:py-2 bg-brand-600 hover:bg-brand-700 text-white text-[11px] sm:text-xs font-bold rounded-xl sm:rounded-2xl shadow-md shadow-brand-600/20 transition-all active:scale-95 whitespace-nowrap shrink-0"
+        >
+          <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+          <span>توزيع ذكي</span>
+        </button>
+      </div>
+
+      {/* Calendar Days Grid (3 columns across mobile) */}
       {loading ? (
         <div className="flex flex-col items-center justify-center p-12 text-gray-400">
           <div className="w-8 h-8 border-3 border-brand-500 border-t-transparent rounded-full animate-spin mb-3" />
           <p className="text-sm">جاري تحميل تقويم الوجبات...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-4 gap-1.5 sm:gap-2.5">
+        <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
           {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
             const isOverflow = day > daysInCurrentMonth;
             const dayMeals = itemsByDay[day] || [];
@@ -152,6 +230,135 @@ export const ScheduleTab: React.FC = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Smart Distribute Modal */}
+      {showDistributeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div
+            className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-3xl p-5 shadow-2xl border border-gray-100 dark:border-gray-800 text-right animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-black text-gray-900 dark:text-white">
+                  توزيع الأكلات الذكي
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDistributeModal(false)}
+                disabled={distributing}
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-2">
+                  اختر الوجبة المراد توزيعها على أيام الشهر
+                </label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {slotLabels.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setDistSlot(s.id)}
+                      className={`py-2 px-2 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
+                        distSlot === s.id
+                          ? 'bg-brand-600 text-white border-brand-600 shadow-sm'
+                          : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-brand-300'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {groups.length > 0 && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1.5">
+                    تصنيف الأكلات (اختياري)
+                  </label>
+                  <select
+                    value={distGroupId}
+                    onChange={(e) => setDistGroupId(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    <option value="">جميع الوصفات المتاحة</option>
+                    {groups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name_ar}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="bg-gray-50 dark:bg-gray-800/60 p-3 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-bold">
+                  <span className="text-gray-600 dark:text-gray-300">
+                    الأكلات المحددة لهذه الوجبة:
+                  </span>
+                  <span className={matchingRecipes.length > 0 ? 'text-brand-600 dark:text-brand-400 font-black' : 'text-red-500 font-black'}>
+                    {matchingRecipes.length} وصفات
+                  </span>
+                </div>
+                {matchingRecipes.length > 0 ? (
+                  <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                    {matchingRecipes.map((r) => (
+                      <span
+                        key={r.id}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200"
+                      >
+                        {r.name_ar} ({r.servings})
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-red-500 dark:text-red-400 font-semibold leading-relaxed">
+                    لا توجد وصفات محددة لوجبة {slotLabels.find((s) => s.id === distSlot)?.label}؛ افتح الوصفات وفعّل خيار الوجبة المطلوبة أولاً.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowDistributeModal(false)}
+                  disabled={distributing}
+                  className="flex-1 py-2.5 px-3 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 font-bold text-xs hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDistribute}
+                  disabled={distributing || matchingRecipes.length === 0}
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-black text-xs shadow-md shadow-brand-600/20 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {distributing ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>جاري التوزيع...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>توزيع الآن</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -83,6 +83,10 @@ export interface Recipe {
   servings: number;
   prep_time_min?: number;
   cook_time_min?: number;
+  for_breakfast?: boolean;
+  for_lunch?: boolean;
+  for_dinner?: boolean;
+  for_snack?: boolean;
   ingredients: RecipeIngredient[];
   total_cost?: number;
   cost_per_serving?: number;

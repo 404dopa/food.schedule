@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
 import { Recipe, RecipeGroup, Ingredient, Unit, RecipeIngredient } from '../../types';
+import { normalizeArabicNumerals } from '../../utils/format';
 import { Plus, Trash2, ChevronRight, UploadCloud, UtensilsCrossed, Check } from 'lucide-react';
 
 interface Props {
@@ -17,7 +18,13 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
   const [imageUrl, setImageUrl] = useState(recipe?.image_url || '');
   const [description, setDescription] = useState(recipe?.description || '');
   const [instructions, setInstructions] = useState(recipe?.instructions || '');
-  const [servings, setServings] = useState<number>(recipe?.servings !== undefined ? recipe.servings : 4);
+  const [servings, setServings] = useState<string>(
+    recipe?.servings !== undefined ? String(recipe.servings) : ''
+  );
+  const [forBreakfast, setForBreakfast] = useState<boolean>(!!recipe?.for_breakfast);
+  const [forLunch, setForLunch] = useState<boolean>(!!recipe?.for_lunch);
+  const [forDinner, setForDinner] = useState<boolean>(!!recipe?.for_dinner);
+  const [forSnack, setForSnack] = useState<boolean>(!!recipe?.for_snack);
   const [view, setView] = useState<'main' | 'ingredients_instructions'>('main');
 
   const mainRef = useRef<HTMLFormElement>(null);
@@ -154,9 +161,13 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
       image_url: imageUrl,
       description,
       instructions,
-      servings: Number(servings),
+      servings: servings === '' ? 0 : Math.max(0, Math.min(31, Number(servings))),
       prep_time_min: 30,
       cook_time_min: 30,
+      for_breakfast: forBreakfast,
+      for_lunch: forLunch,
+      for_dinner: forDinner,
+      for_snack: forSnack,
       ingredients: ingredientsList.map((ri) => ({
         ingredient_id: ri.ingredient_id,
         quantity: Number(ri.quantity),
@@ -203,7 +214,7 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
             <button
               type="button"
               onClick={() => setView('main')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-bold transition-all active:scale-95"
+              className="flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-bold transition-all active:scale-95"
             >
               <ChevronRight className="w-4 h-4 text-brand-600 dark:text-brand-400" />
               <span>رجوع لبيانات الوصفة</span>
@@ -218,15 +229,15 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
           {/* Ingredients Section */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-gray-900 dark:text-white">
+              <label className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white">
                 قائمة مقادير المكونات ({ingredientsList.length})
               </label>
               <button
                 type="button"
                 onClick={addIngredientRow}
-                className="flex items-center gap-1 text-xs font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950 px-2.5 py-1 rounded-xl active:scale-95 transition-all"
+                className="flex items-center gap-1.5 text-xs sm:text-sm font-extrabold text-brand-600 dark:text-brand-400 bg-brand-50 hover:bg-brand-100 dark:bg-brand-950 px-4 py-2.5 min-h-[44px] rounded-2xl border border-brand-200/70 dark:border-brand-800/60 active:scale-95 transition-all"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-4 h-4" />
                 <span>إضافة مكون</span>
               </button>
             </div>
@@ -246,7 +257,7 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
                       <select
                         value={ri.ingredient_id}
                         onChange={(e) => updateIngredientRow(index, 'ingredient_id', e.target.value)}
-                        className="flex-1 px-2.5 py-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none"
+                        className="flex-1 px-3 py-2.5 min-h-[42px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-xs sm:text-sm focus:outline-none"
                       >
                         {allIngredients.map((ing) => (
                           <option key={ing.id} value={ing.id}>
@@ -258,7 +269,7 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
                       <button
                         type="button"
                         onClick={() => removeIngredientRow(index)}
-                        className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                        className="p-2.5 min-h-[42px] min-w-[42px] flex items-center justify-center text-gray-400 hover:text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                         title="حذف المكون"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -274,12 +285,12 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
                         value={ri.quantity}
                         onChange={(e) => updateIngredientRow(index, 'quantity', Number(e.target.value))}
                         placeholder="الكمية"
-                        className="px-2.5 py-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-xs"
+                        className="px-3 py-2.5 min-h-[42px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-xs sm:text-sm"
                       />
                       <select
                         value={ri.unit_id}
                         onChange={(e) => updateIngredientRow(index, 'unit_id', e.target.value)}
-                        className="px-2.5 py-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-xs"
+                        className="px-3 py-2.5 min-h-[42px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-xs sm:text-sm"
                       >
                         {units.map((u) => (
                           <option key={u.id} value={u.id}>
@@ -313,7 +324,7 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
           <button
             type="button"
             onClick={() => setView('main')}
-            className="w-full py-3 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-extrabold text-xs rounded-2xl shadow-md shadow-brand-600/20 transition-all flex items-center justify-center gap-1.5"
+            className="w-full py-4 min-h-[52px] bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-md shadow-brand-600/20 transition-all flex items-center justify-center gap-2"
           >
             <Check className="w-4 h-4" />
             <span>تأكيد المقادير والرجوع للوصفة</span>
@@ -331,7 +342,7 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
         <button
           type="button"
           onClick={handleBack}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-bold transition-all active:scale-95"
+          className="flex items-center gap-1.5 px-4 py-2.5 min-h-[42px] rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-bold transition-all active:scale-95"
         >
           <ChevronRight className="w-4 h-4 text-brand-600 dark:text-brand-400" />
           <span>{recipe ? 'رجوع لتفاصيل الوصفة' : 'رجوع'}</span>
@@ -339,64 +350,82 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
       </div>
 
       {/* Recipe Name */}
-      <div>
-        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-          اسم الوصفة *
-        </label>
-        <input
-          type="text"
-          required
-          value={nameAr}
-          onChange={(e) => setNameAr(e.target.value)}
-          placeholder="مثال: دولمة عراقية، برياني لحم..."
-          className="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none"
-        />
-      </div>
+      <input
+        type="text"
+        required
+        value={nameAr}
+        onChange={(e) => setNameAr(e.target.value)}
+        placeholder="اسم الوصفة *"
+        className="w-full px-4 py-3.5 min-h-[48px] bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm font-bold placeholder:text-gray-400 placeholder:font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none"
+      />
 
       {/* Category and Max Repetitions in Month */}
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-            تصنيف الأكلة
-          </label>
-          <select
-            value={groupId}
-            onChange={(e) => setGroupId(e.target.value)}
-            className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none"
-          >
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name_ar}
-              </option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={groupId}
+          onChange={(e) => setGroupId(e.target.value)}
+          aria-label="تصنيف الأكلة"
+          className="w-full px-3.5 py-3.5 min-h-[48px] bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-brand-500 focus:outline-none"
+        >
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name_ar}
+            </option>
+          ))}
+        </select>
 
-        <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-            عدد التكرارات (شهرياً)
-          </label>
-          <input
-            type="number"
-            min="0"
-            max="31"
-            value={servings}
-            onChange={(e) => setServings(Math.max(0, Number(e.target.value)))}
-            className="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none"
-            title="الحد الأقصى لاختيار الأكلة بأيام الشهر (0 يعني غير متاح)"
-          />
-        </div>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={2}
+          value={servings}
+          onFocus={(e) => e.target.select()}
+          onChange={(e) => {
+            const clean = normalizeArabicNumerals(e.target.value).replace(/\D/g, '');
+            if (clean === '') {
+              setServings('');
+              return;
+            }
+            const clamped = Math.min(31, Number(clean));
+            setServings(String(clamped));
+          }}
+          placeholder="عدد التكرارات (شهرياً)"
+          className="w-full px-4 py-3.5 min-h-[48px] bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm font-bold placeholder:text-gray-400 placeholder:font-medium placeholder:text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          title="عدد التكرارات الشهري (0 يعني غير متاح)"
+        />
       </div>
-      <p className="text-[10px] text-gray-400 -mt-1 leading-normal">
-        * عدد التكرارات يحدد الحد الأقصى لاختيار الأكلة بأيام الشهر (0 يجعل الأكلة غير متاحة ويضلل بطاقتها).
-      </p>
+
+      {/* 4 Meal Slot Checkboxes */}
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          { label: 'فطور', checked: forBreakfast, onChange: setForBreakfast },
+          { label: 'غداء', checked: forLunch, onChange: setForLunch },
+          { label: 'عشاء', checked: forDinner, onChange: setForDinner },
+          { label: 'سناك', checked: forSnack, onChange: setForSnack },
+        ].map((slot) => (
+          <label
+            key={slot.label}
+            className={`flex items-center justify-center gap-1.5 py-3 min-h-[46px] px-2 rounded-2xl border text-xs sm:text-sm font-extrabold cursor-pointer transition-all select-none active:scale-95 ${
+              slot.checked
+                ? 'bg-brand-50 dark:bg-brand-950/60 border-brand-500 text-brand-700 dark:text-brand-300 shadow-xs'
+                : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={slot.checked}
+              onChange={(e) => slot.onChange(e.target.checked)}
+              className="w-4 h-4 accent-brand-600 rounded cursor-pointer"
+            />
+            <span>{slot.label}</span>
+          </label>
+        ))}
+      </div>
 
       {/* Image Upload Box from Phone / Device */}
       <div>
-        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-          صورة الوصفة
-        </label>
-        <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-brand-500 rounded-2xl cursor-pointer bg-gray-50/70 dark:bg-gray-800/40 hover:bg-brand-50/20 transition-all overflow-hidden relative group">
+        <label className="flex flex-col items-center justify-center w-full h-32 sm:h-36 border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-brand-500 rounded-2xl cursor-pointer bg-gray-50/70 dark:bg-gray-800/40 hover:bg-brand-50/20 transition-all overflow-hidden relative group">
           {imageUrl ? (
             <div className="relative w-full h-full">
               <img
@@ -411,14 +440,11 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center p-4 text-center">
-              <div className="w-10 h-10 rounded-2xl bg-brand-50 dark:bg-brand-950/60 text-brand-600 dark:text-brand-400 flex items-center justify-center mb-2">
+              <div className="w-10 h-10 rounded-2xl bg-brand-50 dark:bg-brand-950/60 text-brand-600 dark:text-brand-400 flex items-center justify-center mb-1.5">
                 <UploadCloud className="w-5 h-5" />
               </div>
               <p className="text-xs font-bold text-gray-700 dark:text-gray-200">
-                انقر لاختيار أو التقاط صورة من الهاتف
-              </p>
-              <p className="text-[10px] text-gray-400 mt-0.5">
-                يدعم JPG، PNG، WEBP
+                انقر لاختيار أو التقاط صورة الوصفة
               </p>
             </div>
           )}
@@ -433,7 +459,7 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
           <button
             type="button"
             onClick={() => setImageUrl('')}
-            className="text-[11px] text-red-500 hover:text-red-700 font-bold mt-1.5 flex items-center gap-1"
+            className="text-xs text-red-500 hover:text-red-700 font-bold mt-2 flex items-center gap-1 py-1"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>إزالة الصورة</span>
@@ -442,33 +468,31 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
       </div>
 
       {/* Button to Open Ingredients & Instructions View */}
-      <div className="pt-1">
-        <button
-          type="button"
-          onClick={() => setView('ingredients_instructions')}
-          className="w-full py-3 px-3.5 rounded-2xl border border-brand-200 dark:border-brand-800/80 bg-brand-50/60 dark:bg-brand-950/40 hover:bg-brand-100 dark:hover:bg-brand-900/40 text-brand-700 dark:text-brand-300 font-bold text-xs flex items-center justify-between transition-all shadow-sm active:scale-95"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-xl bg-brand-100 dark:bg-brand-900 text-brand-600 dark:text-brand-400 flex items-center justify-center">
-              <UtensilsCrossed className="w-4 h-4" />
-            </div>
-            <div className="text-right">
-              <span className="block font-extrabold text-xs">المقادير وطريقة التحضير</span>
-              <span className="text-[10px] text-gray-500 dark:text-gray-400 block font-normal">
-                {ingredientsList.length} مقادير مسجلة {instructions ? '• خطوات التحضير مدخلة' : ''}
-              </span>
-            </div>
+      <button
+        type="button"
+        onClick={() => setView('ingredients_instructions')}
+        className="w-full py-4 px-4 min-h-[58px] rounded-2xl border border-brand-200 dark:border-brand-800/80 bg-brand-50/60 dark:bg-brand-950/40 hover:bg-brand-100 dark:hover:bg-brand-900/40 text-brand-700 dark:text-brand-300 font-bold text-xs sm:text-sm flex items-center justify-between transition-all shadow-sm active:scale-95"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-brand-100 dark:bg-brand-900 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+            <UtensilsCrossed className="w-4 h-4" />
           </div>
-          <ChevronRight className="w-4 h-4 text-brand-600 dark:text-brand-400 rotate-180" />
-        </button>
-      </div>
+          <div className="text-right">
+            <span className="block font-extrabold text-xs sm:text-sm">المقادير وطريقة التحضير</span>
+            <span className="text-[11px] text-gray-500 dark:text-gray-400 block font-normal">
+              {ingredientsList.length} مقادير مسجلة {instructions ? '• خطوات التحضير مدخلة' : ''}
+            </span>
+          </div>
+        </div>
+        <ChevronRight className="w-4 h-4 text-brand-600 dark:text-brand-400 rotate-180" />
+      </button>
 
       {/* Submit & Back Action Buttons */}
-      <div className="flex items-center gap-2 pt-2">
+      <div className="flex items-center gap-2 pt-1">
         <button
           type="button"
           onClick={handleBack}
-          className="py-3 px-4 rounded-2xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-750 text-gray-700 dark:text-gray-200 font-bold text-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 border border-gray-200 dark:border-gray-700 shadow-xs"
+          className="py-3.5 px-5 min-h-[48px] rounded-2xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-750 text-gray-700 dark:text-gray-200 font-bold text-xs sm:text-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 border border-gray-200 dark:border-gray-700 shadow-xs"
         >
           <ChevronRight className="w-4 h-4" />
           <span>رجوع</span>
@@ -477,7 +501,7 @@ export const AddEditRecipeSheet: React.FC<Props> = ({ recipe, onSuccess }) => {
         <button
           type="submit"
           disabled={submitting}
-          className="flex-1 py-3 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-extrabold text-xs rounded-2xl shadow-md shadow-brand-600/20 transition-all disabled:opacity-50"
+          className="flex-1 py-3.5 min-h-[48px] bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-extrabold text-sm rounded-2xl shadow-md shadow-brand-600/20 transition-all disabled:opacity-50"
         >
           {submitting ? 'جاري الحفظ...' : recipe ? 'حفظ التعديلات' : 'إنشاء الوصفة'}
         </button>

@@ -245,6 +245,23 @@ export const api = {
     return request(`/monthly-schedule/${id}`, { method: 'DELETE' });
   },
 
+  async autoDistributeSchedule(
+    slot: string,
+    year: number,
+    month: number,
+    groupId?: string
+  ): Promise<{ assigned_count: number; items: MonthlyScheduleItem[] }> {
+    return request('/monthly-schedule/auto-distribute', {
+      method: 'POST',
+      body: JSON.stringify({
+        slot,
+        year,
+        month,
+        group_id: groupId || '',
+      }),
+    });
+  },
+
   // Meal Preparation (Atomic Inventory Deduction with Idempotency)
   async prepareMeal(mealPlanItemId: string, notes?: string) {
     const idempotency_key = generateUUID();

@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"fmt"
+	"math"
+	"math/rand"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1110,6 +1113,266 @@ func (h *AppHandler) DeleteMonthlyScheduleItem(c *gin.Context) {
 	}
 	h.hub.Broadcast("schedule_updated")
 	c.JSON(http.StatusOK, gin.H{"message": "monthly schedule item deleted"})
+}
+
+// AutoDistributeMonthlySchedule randomly and evenly distributes available recipes across the month for a single slot,
+// respecting each recipe's monthly repetition limit (servings) and avoiding back-to-back repeats.
+func (h *AppHandler) AutoDistributeMonthlySchedule(c *gin.Context) {
+	householdID := h.getHouseholdID(c)
+	var req struct {
+		Slot    models.MealSlot `json:"slot" binding:"required"`
+		Year    int             `json:"year"`
+		Month   int             `json:"month"`
+		GroupID string          `json:"group_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	now := time.Now()
+	if req.Year <= 2000 {
+		req.Year = now.Year()
+	}
+	if req.Month < 1 || req.Month > 12 {
+		req.Month = int(now.Month())
+	}
+	daysInMonth := time.Date(req.Year, time.Month(req.Month+1), 0, 0, 0, 0, 0, time.Local).Day()
+
+	recipes, err := h.recipeRepo.GetAllRecipes(householdID, req.GroupID, "")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	allMonthly, err := h.mealPlanRepo.GetMonthlySchedule(householdID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 1. Preserve days in this slot that are already prepared; track usage in other slots & prepared days
+	preparedDays := make(map[int]bool)
+	usedDaysByRecipe := make(map[string]map[int]bool)
+	for _, m := range allMonthly {
+		if m.Slot == req.Slot {
+			if m.IsPrepared {
+				preparedDays[m.DayOfMonth] = true
+				if !m.IsSkipped {
+					if usedDaysByRecipe[m.RecipeID] == nil {
+						usedDaysByRecipe[m.RecipeID] = make(map[int]bool)
+					}
+					usedDaysByRecipe[m.RecipeID][m.DayOfMonth] = true
+				}
+			}
+		} else if !m.IsSkipped {
+			if usedDaysByRecipe[m.RecipeID] == nil {
+				usedDaysByRecipe[m.RecipeID] = make(map[int]bool)
+			}
+			usedDaysByRecipe[m.RecipeID][m.DayOfMonth] = true
+		}
+	}
+
+	var availableDays []int
+	for d := 1; d <= daysInMonth; d++ {
+		if !preparedDays[d] {
+			availableDays = append(availableDays, d)
+		}
+	}
+
+	// 2. Build candidate list filtered by the selected meal slot & remaining monthly quota
+	matchesSlot := func(r models.Recipe, slot models.MealSlot) bool {
+		switch slot {
+		case models.MealBreakfast:
+			return r.ForBreakfast
+		case models.MealLunch:
+			return r.ForLunch
+		case models.MealDinner:
+			return r.ForDinner
+		case models.MealSnack:
+			return r.ForSnack
+		default:
+			return false
+		}
+	}
+
+	type candidate struct {
+		recipe models.Recipe
+		quota  int
+	}
+	var candidates []candidate
+	for _, r := range recipes {
+		if r.Servings <= 0 || !matchesSlot(r, req.Slot) {
+			continue
+		}
+		used := len(usedDaysByRecipe[r.ID])
+		rem := r.Servings - used
+		if rem > 0 {
+			candidates = append(candidates, candidate{recipe: r, quota: rem})
+		}
+	}
+
+	if len(candidates) == 0 || len(availableDays) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "no_candidates",
+			"message": "لا توجد وصفات محددة لهذه الوجبة (تأكد من تفعيل خيار الوجبة ووجود تكرارات أكبر من 0)",
+		})
+		return
+	}
+
+	// Randomize order first, then stable-sort highest quota first so high-frequency recipes get clean even spacing
+	rand.Shuffle(len(candidates), func(i, j int) {
+		candidates[i], candidates[j] = candidates[j], candidates[i]
+	})
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return candidates[i].quota > candidates[j].quota
+	})
+
+	// 3. Even-spacing randomized placement
+	assigned := make(map[int]models.Recipe)
+	totalAvailable := len(availableDays)
+
+	hasAdjacentSame := func(day int, recipeID string) bool {
+		if prev, ok := assigned[day-1]; ok && prev.ID == recipeID {
+			return true
+		}
+		if next, ok := assigned[day+1]; ok && next.ID == recipeID {
+			return true
+		}
+		return false
+	}
+
+	for _, cand := range candidates {
+		if len(assigned) >= totalAvailable {
+			break
+		}
+		// Cap placements to remaining unassigned days
+		remainingSlots := totalAvailable - len(assigned)
+		count := cand.quota
+		if count > remainingSlots {
+			count = remainingSlots
+		}
+		if count <= 0 {
+			continue
+		}
+
+		stride := float64(totalAvailable) / float64(count)
+		phase := rand.Float64() * stride
+
+		for j := 0; j < count; j++ {
+			if len(assigned) >= totalAvailable {
+				break
+			}
+			idealIdx := int(math.Round(phase+float64(j)*stride)) % totalAvailable
+			if idealIdx < 0 {
+				idealIdx += totalAvailable
+			}
+
+			// First pass: find closest free day that avoids adjacent duplicate (d-1 or d+1) and isn't already used by this recipe
+			chosenDay := -1
+			for offset := 0; offset < totalAvailable; offset++ {
+				for _, sign := range []int{1, -1} {
+					if offset == 0 && sign == -1 {
+						continue
+					}
+					idx := (idealIdx + sign*offset) % totalAvailable
+					if idx < 0 {
+						idx += totalAvailable
+					}
+					d := availableDays[idx]
+					if _, taken := assigned[d]; taken {
+						continue
+					}
+					if usedDaysByRecipe[cand.recipe.ID][d] {
+						continue
+					}
+					if !hasAdjacentSame(d, cand.recipe.ID) {
+						chosenDay = d
+						break
+					}
+				}
+				if chosenDay != -1 {
+					break
+				}
+			}
+
+			// Fallback pass: any free day not exceeding this day
+			if chosenDay == -1 {
+				for offset := 0; offset < totalAvailable; offset++ {
+					for _, sign := range []int{1, -1} {
+						if offset == 0 && sign == -1 {
+							continue
+						}
+						idx := (idealIdx + sign*offset) % totalAvailable
+						if idx < 0 {
+							idx += totalAvailable
+						}
+						d := availableDays[idx]
+						if _, taken := assigned[d]; !taken {
+							chosenDay = d
+							break
+						}
+					}
+					if chosenDay != -1 {
+						break
+					}
+				}
+			}
+
+			if chosenDay != -1 {
+				assigned[chosenDay] = cand.recipe
+				if usedDaysByRecipe[cand.recipe.ID] == nil {
+					usedDaysByRecipe[cand.recipe.ID] = make(map[int]bool)
+				}
+				usedDaysByRecipe[cand.recipe.ID][chosenDay] = true
+			}
+		}
+	}
+
+	// 4. Persist inside a single atomic transaction
+	err = h.mealPlanRepo.DB().Transaction(func(tx *gorm.DB) error {
+		// Remove old non-prepared items in this slot
+		if err := tx.Unscoped().
+			Where("(household_id = ? OR household_id = '') AND slot = ? AND is_prepared = ?", householdID, req.Slot, false).
+			Delete(&models.MonthlyScheduleItem{}).Error; err != nil {
+			return err
+		}
+
+		// Insert newly distributed items
+		for day, rec := range assigned {
+			newItem := models.MonthlyScheduleItem{
+				BaseModel:   models.BaseModel{ID: uuid.NewString()},
+				HouseholdID: householdID,
+				DayOfMonth:  day,
+				Slot:        req.Slot,
+				RecipeID:    rec.ID,
+				Servings:    rec.Servings,
+				IsSkipped:   false,
+				IsPrepared:  false,
+			}
+			if err := tx.Create(&newItem).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	updatedAll, _ := h.mealPlanRepo.GetMonthlySchedule(householdID)
+	for i := range updatedAll {
+		if updatedAll[i].Recipe != nil {
+			h.recipeServ.EnrichRecipe(updatedAll[i].Recipe)
+		}
+	}
+
+	h.hub.Broadcast("schedule_updated")
+	c.JSON(http.StatusOK, gin.H{
+		"assigned_count": len(assigned),
+		"items":          updatedAll,
+	})
 }
 
 // Prepare Meal - Critical Inventory Transaction

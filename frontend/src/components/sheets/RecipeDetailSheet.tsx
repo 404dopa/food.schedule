@@ -376,10 +376,10 @@ export const RecipeDetailSheet: React.FC<Props> = ({ recipe, mealItem, onSuccess
               type="button"
               onClick={handleUnprepareMeal}
               disabled={isMutating}
-              className="w-full py-3.5 px-4 rounded-2xl border border-emerald-300 dark:border-emerald-700/60 bg-emerald-50 hover:bg-amber-50 dark:bg-emerald-950/40 dark:hover:bg-amber-950/40 text-emerald-800 hover:text-amber-700 dark:text-emerald-300 dark:hover:text-amber-300 text-sm font-bold transition-all active:scale-95 flex items-center justify-center gap-2 shadow-sm group disabled:opacity-50"
+              className="w-full py-3.5 px-4 rounded-2xl border border-emerald-300 dark:border-emerald-700/60 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-sm font-bold transition-all active:scale-95 flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
               title="اضغط للتراجع عن تحضير الوجبة واستعادة المواد للمخزون"
             >
-              <RotateCcw className="w-4 h-4 text-emerald-600 group-hover:text-amber-600 transition-colors" />
+              <RotateCcw className="w-4 h-4 text-emerald-600 dark:text-emerald-400 transition-colors" />
               <span>{isPreparing ? 'جاري التراجع...' : 'تراجع عن التحضير'}</span>
             </button>
           )}

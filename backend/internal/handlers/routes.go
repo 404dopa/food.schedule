@@ -108,6 +108,7 @@ func SetupRouter(cfg *config.Config, h *AppHandler) *gin.Engine {
 		// Monthly Recurring Schedule (الجدول الشهري المتكرر)
 		api.GET("/monthly-schedule", h.GetMonthlySchedule)
 		api.POST("/monthly-schedule", h.SaveMonthlyScheduleItem)
+		api.POST("/monthly-schedule/auto-distribute", h.AutoDistributeMonthlySchedule)
 		api.DELETE("/monthly-schedule/:id", h.DeleteMonthlyScheduleItem)
 
 		// Meals Prepare & Unprepare (Atomic Inventory Management)

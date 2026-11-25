@@ -57,7 +57,7 @@ export const BottomNavigation: React.FC = () => {
       aria-label="شريط التنقل الرئيسي"
       className="fixed inset-x-0 bottom-[12px] sm:bottom-[16px] z-40 flex justify-center px-[12px] pointer-events-none select-none"
     >
-      <div className="pointer-events-auto w-full max-w-md relative px-[8px] py-[6px] rounded-[28px] bg-white/92 dark:bg-gray-900/92 backdrop-blur-md border border-gray-200/80 dark:border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.10)] dark:shadow-[0_12px_28px_rgba(0,0,0,0.5)] flex items-center justify-around">
+      <div className="pointer-events-auto w-full max-w-md relative px-[8px] py-[6px] rounded-[28px] bg-white/75 dark:bg-gray-900/75 backdrop-blur-md border border-white/60 dark:border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.10)] dark:shadow-[0_12px_28px_rgba(0,0,0,0.5)] flex items-center justify-around">
         {visibleNavItems.map((item) => {
           const isActive = currentTab === item.id;
           const Icon = item.icon;
@@ -82,22 +82,16 @@ export const BottomNavigation: React.FC = () => {
                     }
                   : undefined
               }
-              className={`flex flex-col items-center justify-center flex-1 py-[6px] px-[4px] rounded-2xl transition-all duration-200 cursor-pointer active:scale-95 ${
+              className={`flex flex-col items-center justify-center flex-1 py-[6px] px-[4px] rounded-[22px] transition-all duration-200 cursor-pointer active:scale-95 ${
                 isActive
-                  ? 'text-brand-600 dark:text-brand-400 font-black'
-                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'
+                  ? 'bg-white text-brand-600 border border-brand-200/80 dark:bg-gray-800 dark:text-brand-400 dark:border-brand-500/30 shadow-sm font-black'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
               }`}
             >
-              <div
-                className={`p-[6px] rounded-xl transition-all duration-200 flex items-center justify-center ${
-                  isActive
-                    ? 'bg-brand-500/15 dark:bg-brand-400/20 shadow-sm shadow-brand-500/10 scale-105'
-                    : ''
-                }`}
-              >
+              <div className="p-[4px] flex items-center justify-center">
                 <Icon className={`w-[20px] h-[20px] ${isActive ? 'stroke-[2.5]' : 'stroke-2'}`} />
               </div>
-              <span className={`text-[11px] mt-[2px] tracking-tight ${isActive ? 'font-black' : 'font-semibold'}`}>
+              <span className={`text-[11px] mt-[1px] tracking-tight ${isActive ? 'font-black' : 'font-semibold'}`}>
                 {item.label}
               </span>
             </button>

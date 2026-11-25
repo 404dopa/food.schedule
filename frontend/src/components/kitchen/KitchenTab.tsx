@@ -178,14 +178,14 @@ export const KitchenTab: React.FC = () => {
             title="إضافة وإدارة مجموعات المكونات"
           >
             <FolderPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-brand-600 dark:text-brand-400 shrink-0" />
-            <span>إضافة مجموعة</span>
+            <span>مجموعة</span>
           </button>
           <button
             onClick={() => openSheet('add_ingredient')}
             className="flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-brand-600 hover:bg-brand-700 text-white text-[11px] sm:text-xs font-bold rounded-xl sm:rounded-2xl shadow-md shadow-brand-600/20 transition-all active:scale-95 whitespace-nowrap shrink-0"
           >
             <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-            <span>مكون جديد</span>
+            <span>مكون</span>
           </button>
         </div>
       </div>

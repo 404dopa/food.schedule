@@ -15,7 +15,6 @@ import {
   Users,
   LogOut,
   Loader2,
-  ArrowLeftRight,
 } from 'lucide-react';
 
 const slotOrder: Record<MealSlot, number> = {
@@ -187,9 +186,24 @@ export const HomeTab: React.FC = () => {
     mutatingIdsRef.current.add(item.id);
     const nextSkipped = !item.is_skipped;
     // Optimistic update
-    setAllTwoDayItems((prev) =>
-      prev.map((it) => (it.id === item.id ? { ...it, is_skipped: nextSkipped, is_prepared: false } : it))
-    );
+    setAllTwoDayItems((prev) => {
+      const next = prev.map((it) =>
+        it.id === item.id ? { ...it, is_skipped: nextSkipped, is_prepared: false } : it
+      );
+      const todayOnly = next.filter((it) => it.plan_date === todayStr);
+      if (
+        activeDateStr === todayStr &&
+        todayOnly.length > 0 &&
+        todayOnly.every((it) => it.is_prepared || it.is_skipped) &&
+        autoSwitchedForDateRef.current !== todayStr
+      ) {
+        autoSwitchedForDateRef.current = todayStr;
+        setSelectedDayMode('tomorrow');
+      } else if (activeDateStr === todayStr && !nextSkipped) {
+        autoSwitchedForDateRef.current = null;
+      }
+      return next;
+    });
     try {
       await api.updateMealPlanItem(item.id, {
         ...item,
@@ -477,45 +491,31 @@ export const HomeTab: React.FC = () => {
         )}
         {/* Meals Schedule Section */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between px-1">
+        {/* Today / Tomorrow Segmented Selector */}
+        <div className="grid grid-cols-2 gap-1.5 p-1 bg-gray-100 dark:bg-gray-800/80 rounded-2xl border border-gray-200/80 dark:border-gray-700/60">
           <button
             type="button"
-            onClick={() => setSelectedDayMode((prev) => (prev === 'today' ? 'tomorrow' : 'today'))}
-            className="font-bold text-gray-900 dark:text-white text-lg flex items-center gap-2 hover:text-brand-600 dark:hover:text-brand-400 active:scale-95 transition-all cursor-pointer"
-            title={selectedDayMode === 'today' ? 'انقر لعرض وجبات يوم غد' : 'انقر للرجوع لوجبات اليوم'}
+            onClick={() => setSelectedDayMode('today')}
+            className={`py-2.5 px-3 rounded-xl text-sm sm:text-base transition-all cursor-pointer active:scale-98 ${
+              selectedDayMode === 'today'
+                ? 'bg-white dark:bg-gray-900 text-brand-600 dark:text-brand-400 shadow-sm font-black'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-bold'
+            }`}
           >
-            <span>{selectedDayMode === 'today' ? 'وجبات اليوم' : 'وجبات غد'}</span>
-            <span className="text-sm font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950 px-2.5 py-0.5 rounded-full">
-              {todayItems.length}
-            </span>
-            <ArrowLeftRight className="w-3.5 h-3.5 text-gray-400" />
+            شراح ناكل اليوم ؟
           </button>
 
-          <div className="flex items-center gap-2">
-            {/* Toggle Skip Day button next to selected day's meals */}
-            <button
-              type="button"
-              onClick={handleToggleSkipDay}
-              disabled={todayItems.length === 0}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm sm:text-base font-extrabold transition-all shadow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${isDaySkipped
-                  ? 'border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50'
-                  : 'border-gray-200 dark:border-gray-750 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300'
-                }`}
-              title={isDaySkipped ? 'إلغاء التخطي واستعادة الوجبات' : selectedDayMode === 'today' ? 'تخطي وجبات اليوم' : 'تخطي وجبات غد'}
-            >
-              {isDaySkipped ? (
-                <>
-                  <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                  <span>إلغاء التخطي</span>
-                </>
-              ) : (
-                <>
-                  <SkipForward className="w-4 h-4 text-amber-500" />
-                  <span>{selectedDayMode === 'today' ? 'تخطي اليوم' : 'تخطي غد'}</span>
-                </>
-              )}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedDayMode('tomorrow')}
+            className={`py-2.5 px-3 rounded-xl text-sm sm:text-base transition-all cursor-pointer active:scale-98 ${
+              selectedDayMode === 'tomorrow'
+                ? 'bg-white dark:bg-gray-900 text-brand-600 dark:text-brand-400 shadow-sm font-black'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-bold'
+            }`}
+          >
+            شنو باجر ؟
+          </button>
         </div>
 
         {loading ? (
@@ -558,7 +558,7 @@ export const HomeTab: React.FC = () => {
                     }`}
                 >
                   {/* Food Photo with Overlaid Title & Hints */}
-                  <div className="relative w-full aspect-[5/3] bg-gray-100 dark:bg-gray-800 rounded-t-[23px]">
+                  <div className="relative w-full aspect-[12/5] bg-gray-100 dark:bg-gray-800 rounded-t-[23px]">
                     <div className="absolute inset-0 overflow-hidden rounded-t-[23px]">
                       <img
                         src={
@@ -607,36 +607,51 @@ export const HomeTab: React.FC = () => {
 
                   {/* Full-bleed Card Bottom Action */}
                   {!item.is_prepared && !item.is_skipped && (
-                    <button
-                      type="button"
-                      onClick={() => handleDirectPrepare(item)}
-                      disabled={preparingId === item.id}
-                      className="w-full flex items-center justify-center gap-2.5 py-4 px-4 bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white text-base sm:text-lg font-black transition-all disabled:opacity-50 rounded-b-[23px] shadow-sm"
-                    >
-                      <ChefHat className={`w-5 h-5 ${preparingId === item.id ? 'animate-bounce' : ''}`} />
-                      <span>{preparingId === item.id ? 'جاري التحضير...' : 'انقر لتحضير الوجبة'}</span>
-                    </button>
+                    <div className="w-full flex items-stretch rounded-b-[23px] overflow-hidden shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => handleDirectPrepare(item)}
+                        disabled={preparingId === item.id}
+                        className="flex-1 flex items-center justify-center gap-2.5 py-4 px-4 bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white text-base sm:text-lg font-black transition-all disabled:opacity-50"
+                      >
+                        <ChefHat className={`w-5 h-5 ${preparingId === item.id ? 'animate-bounce' : ''}`} />
+                        <span>{preparingId === item.id ? 'جاري التحضير...' : 'انقر لتحضير الوجبة'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleSkipMeal(item)}
+                        disabled={preparingId === item.id}
+                        className="w-1/3 min-w-[105px] px-5 py-4 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-amber-300 border-t border-amber-200/60 dark:border-gray-700 flex items-center justify-center gap-1.5 text-sm sm:text-base font-extrabold transition-all disabled:opacity-50 shrink-0"
+                        title="تخطي هذه الوجبة"
+                      >
+                        <SkipForward className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        <span>تخطي</span>
+                      </button>
+                    </div>
                   )}
 
                   {item.is_prepared && (
                     <button
                       type="button"
                       onClick={() => handleUnprepareMeal(item.id)}
-                      className="w-full py-4 px-4 bg-emerald-50 hover:bg-amber-50 dark:bg-emerald-950/40 dark:hover:bg-amber-950/40 text-emerald-800 hover:text-amber-700 dark:text-emerald-300 dark:hover:text-amber-300 text-sm sm:text-base font-black transition-all flex items-center justify-center gap-2.5 border-t border-emerald-200/60 dark:border-emerald-800/60 group rounded-b-[23px]"
+                      className="w-full py-4 px-4 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-sm sm:text-base font-black transition-all flex items-center justify-center gap-2.5 border-t border-emerald-200/60 dark:border-emerald-800/60 rounded-b-[23px]"
                       title="اضغط للتراجع عن تحضير الوجبة واستعادة المواد للمخزون"
                     >
-                      <RotateCcw className="w-5 h-5 text-emerald-600 group-hover:text-amber-600 transition-colors" />
+                      <RotateCcw className="w-5 h-5 text-emerald-600 dark:text-emerald-400 transition-colors" />
                       <span>تراجع عن التحضير</span>
                     </button>
                   )}
 
                   {item.is_skipped && (
-                    <div className="w-full py-3.5 px-4 bg-amber-50/90 dark:bg-amber-950/40 border-t border-amber-200/80 dark:border-amber-900/40 text-amber-800 dark:text-amber-300 text-sm sm:text-base font-black flex items-center justify-between rounded-b-[23px]">
-                      <span>تم تخطي هذه الوجبة لليوم</span>
-                      <span className="text-xs sm:text-sm text-amber-600 dark:text-amber-400 font-bold">
-                        (انقر على الصورة لإلغاء التخطي)
-                      </span>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSkipMeal(item)}
+                      className="w-full py-3.5 px-4 bg-amber-50/90 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/40 border-t border-amber-200/80 dark:border-amber-900/40 text-amber-800 dark:text-amber-300 text-sm sm:text-base font-black flex items-center justify-center gap-2 transition-all active:scale-99 rounded-b-[23px]"
+                      title="اضغط لإلغاء التخطي واستعادة الوجبة"
+                    >
+                      <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      <span>إلغاء التخطي</span>
+                    </button>
                   )}
                 </div>
               );
