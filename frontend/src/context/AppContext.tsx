@@ -162,8 +162,12 @@ export const AppProvider: React.FC<{
     setAlertModal(null);
   };
   const [refreshKey, setRefreshKey] = useState(0);
+  const lastLocalRefreshRef = React.useRef<number>(0);
 
-  const triggerRefresh = () => setRefreshKey((k) => k + 1);
+  const triggerRefresh = () => {
+    lastLocalRefreshRef.current = Date.now();
+    setRefreshKey((k) => k + 1);
+  };
 
   // Apply theme class
   useEffect(() => {
@@ -269,13 +273,15 @@ export const AppProvider: React.FC<{
         };
 
         eventSource.onmessage = (event) => {
+          // Skip redundant SSE echo right after our own local mutation
+          if (Date.now() - lastLocalRefreshRef.current < 1500) return;
           try {
             const data = JSON.parse(event.data);
             if (data.type === 'ping') return;
-            // Real-time server event triggered (meal, schedule, recipe, inventory)
-            triggerRefresh();
+            // Real-time server event triggered from another device
+            setRefreshKey((k) => k + 1);
           } catch (e) {
-            triggerRefresh();
+            setRefreshKey((k) => k + 1);
           }
         };
 

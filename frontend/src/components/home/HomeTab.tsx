@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
 import { clearAllLocalData } from '../../services/db';
@@ -38,7 +38,7 @@ export const HomeTab: React.FC = () => {
     logout,
     updateSession,
   } = useApp();
-  const [todayItems, setTodayItems] = useState<MealPlanItem[]>([]);
+  const [allTwoDayItems, setAllTwoDayItems] = useState<MealPlanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [preparingId, setPreparingId] = useState<string | null>(null);
   const [activeMissingPopoverId, setActiveMissingPopoverId] = useState<string | null>(null);
@@ -72,6 +72,12 @@ export const HomeTab: React.FC = () => {
 
   const activeDateStr = selectedDayMode === 'today' ? todayStr : tomorrowStr;
 
+  const todayItems = useMemo(() => {
+    return allTwoDayItems
+      .filter((it) => it.plan_date === activeDateStr)
+      .sort((a, b) => (slotOrder[a.slot] || 99) - (slotOrder[b.slot] || 99));
+  }, [allTwoDayItems, activeDateStr]);
+
   // Greeting based on time of day
   const greeting = (() => {
     const hour = new Date().getHours();
@@ -80,25 +86,22 @@ export const HomeTab: React.FC = () => {
     return 'مساء الخير';
   })();
 
-  const loadDayMeals = async (showSpinner = false, dateStr = activeDateStr) => {
+  const loadDayMeals = async (showSpinner = false) => {
     if (showSpinner) setLoading(true);
     try {
-      const items = await api.getMealPlans(dateStr, dateStr);
-      const filtered = items.filter((it) => it.plan_date === dateStr);
-      filtered.sort((a, b) => (slotOrder[a.slot] || 99) - (slotOrder[b.slot] || 99));
-      setTodayItems(filtered);
+      const items = await api.getMealPlans(todayStr, tomorrowStr);
+      setAllTwoDayItems(items);
 
       // Auto-switch from Today to Tomorrow once all of Today's meals are prepared or skipped
-      if (dateStr === todayStr) {
-        const allDone = filtered.length > 0 && filtered.every((it) => it.is_prepared || it.is_skipped);
-        if (allDone) {
-          if (autoSwitchedForDateRef.current !== todayStr) {
-            autoSwitchedForDateRef.current = todayStr;
-            setSelectedDayMode('tomorrow');
-          }
-        } else {
-          autoSwitchedForDateRef.current = null;
+      const todayOnly = items.filter((it) => it.plan_date === todayStr);
+      const allDone = todayOnly.length > 0 && todayOnly.every((it) => it.is_prepared || it.is_skipped);
+      if (allDone) {
+        if (autoSwitchedForDateRef.current !== todayStr) {
+          autoSwitchedForDateRef.current = todayStr;
+          setSelectedDayMode('tomorrow');
         }
+      } else {
+        autoSwitchedForDateRef.current = null;
       }
     } catch (err) {
       console.error(err);
@@ -108,18 +111,24 @@ export const HomeTab: React.FC = () => {
   };
 
   useEffect(() => {
-    loadDayMeals(todayItems.length === 0, activeDateStr);
-  }, [refreshKey, activeDateStr]);
+    loadDayMeals(allTwoDayItems.length === 0);
+  }, [refreshKey]);
 
   const isDaySkipped = todayItems.length > 0 && todayItems.every((it) => it.is_skipped);
 
   const handleToggleSkipDay = async () => {
     const nextSkip = !isDaySkipped;
-    // Optimistic update keeps scroll position completely intact
-    setTodayItems((prev) => prev.map((it) => ({ ...it, is_skipped: nextSkip })));
+    // Optimistic update keeps scroll position and switches instantly
+    setAllTwoDayItems((prev) =>
+      prev.map((it) => (it.plan_date === activeDateStr ? { ...it, is_skipped: nextSkip } : it))
+    );
+    if (activeDateStr === todayStr && nextSkip && autoSwitchedForDateRef.current !== todayStr) {
+      autoSwitchedForDateRef.current = todayStr;
+      setSelectedDayMode('tomorrow');
+    }
     try {
       await api.skipDay(activeDateStr, nextSkip);
-      loadDayMeals(false, activeDateStr);
+      loadDayMeals(false);
       showToast(
         nextSkip
           ? selectedDayMode === 'today'
@@ -136,7 +145,7 @@ export const HomeTab: React.FC = () => {
         err.message || 'إحدى وجبات هذا اليوم استُنفد رصيدها الشهري في أيام أخرى.',
         'يرجى مراجعة رصيد استخدام الأكلات في جدول الشهر أولاً.'
       );
-      loadDayMeals(false, activeDateStr);
+      loadDayMeals(false);
     }
   };
 
@@ -147,7 +156,7 @@ export const HomeTab: React.FC = () => {
     }
     const nextSkipped = !item.is_skipped;
     // Optimistic update
-    setTodayItems((prev) =>
+    setAllTwoDayItems((prev) =>
       prev.map((it) => (it.id === item.id ? { ...it, is_skipped: nextSkipped, is_prepared: false } : it))
     );
     try {
@@ -157,7 +166,7 @@ export const HomeTab: React.FC = () => {
         is_skipped: nextSkipped,
       });
       triggerRefresh();
-      loadDayMeals(false, activeDateStr);
+      loadDayMeals(false);
       showToast(
         nextSkipped
           ? 'تم تخطي الوجبة وإعادتها لرصيد الاستخدام الشهري'
@@ -170,36 +179,40 @@ export const HomeTab: React.FC = () => {
         err.message || 'تم استنفاد الحد الأقصى لاختيار هذه الأكلة لهذا الشهر في أيام أخرى.',
         'لإتاحة فك التخطي، يرجى حذف الأكلة أو تخطيها من أحد الأيام الأخرى لتوفير رصيد استخدام.'
       );
-      loadDayMeals(false, activeDateStr);
+      loadDayMeals(false);
     }
   };
 
   const handleUnprepareMeal = async (id: string) => {
     // Optimistic update
-    setTodayItems((prev) =>
+    setAllTwoDayItems((prev) =>
       prev.map((it) => (it.id === id ? { ...it, is_prepared: false } : it))
     );
     try {
       await api.unprepareMeal(id);
       triggerRefresh();
-      loadDayMeals(false, activeDateStr);
+      loadDayMeals(false);
       showToast('تم التراجع عن التحضير واستعادة المكونات للمخزن', 'info');
     } catch (err: any) {
       showToast(err.message || 'فشل التراجع عن التحضير', 'error');
-      loadDayMeals(false, activeDateStr);
+      loadDayMeals(false);
     }
   };
 
   const handleDirectPrepare = async (item: MealPlanItem) => {
     setPreparingId(item.id);
+    // Optimistic update for instant UI feedback
+    setAllTwoDayItems((prev) =>
+      prev.map((it) => (it.id === item.id ? { ...it, is_prepared: true, is_skipped: false } : it))
+    );
     try {
       await api.prepareMeal(item.id);
       triggerRefresh();
-      loadDayMeals(false, activeDateStr);
+      loadDayMeals(false);
       showToast('تم تحضير الوجبة وخصم المواد بنجاح', 'success');
     } catch (err: any) {
       showToast(err.message || 'فشل تحضير الوجبة', 'error');
-      loadDayMeals(false, activeDateStr);
+      loadDayMeals(false);
     } finally {
       setPreparingId(null);
     }
@@ -207,12 +220,12 @@ export const HomeTab: React.FC = () => {
 
   const handleDeleteMeal = async (id: string) => {
     // Optimistic update
-    setTodayItems((prev) => prev.filter((it) => it.id !== id));
+    setAllTwoDayItems((prev) => prev.filter((it) => it.id !== id));
     try {
       await api.deleteMealPlanItem(id);
-      loadDayMeals(false, activeDateStr);
+      loadDayMeals(false);
     } catch (err: any) {
-      loadDayMeals(false, activeDateStr);
+      loadDayMeals(false);
     }
   };
 

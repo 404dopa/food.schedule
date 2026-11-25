@@ -62,11 +62,12 @@ export const DayScheduleSheet: React.FC<Props> = ({
   }, [items, dayOfMonth]);
 
   useEffect(() => {
-    refreshDayItems();
+    if (refreshKey > 0) {
+      refreshDayItems();
+    }
   }, [refreshKey]);
 
   useEffect(() => {
-    refreshDayItems();
     api.getRecipes().then((rList) => {
       setRecipes(rList);
       if (rList.length > 0) {
@@ -265,7 +266,6 @@ export const DayScheduleSheet: React.FC<Props> = ({
       lastViewChangeTime.current = Date.now();
       setView('list');
       onSuccess();
-      refreshDayItems();
     } catch (err: any) {
       showToast(err.message || 'فشل حفظ الوجبة', 'error');
     } finally {
