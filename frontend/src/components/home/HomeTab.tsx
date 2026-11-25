@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/api';
 import { clearAllLocalData } from '../../services/db';
@@ -15,6 +15,7 @@ import {
   Users,
   LogOut,
   Loader2,
+  ArrowLeftRight,
 } from 'lucide-react';
 
 const slotOrder: Record<MealSlot, number> = {
@@ -52,13 +53,24 @@ export const HomeTab: React.FC = () => {
   const [changeFamilyLoading, setChangeFamilyLoading] = useState(false);
   const [suggestCreateFamily, setSuggestCreateFamily] = useState(false);
 
-  const todayStr = (() => {
-    const d = new Date();
+  const [selectedDayMode, setSelectedDayMode] = useState<'today' | 'tomorrow'>('today');
+  const autoSwitchedForDateRef = useRef<string | null>(null);
+
+  const formatDateLocal = (d: Date) => {
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  };
+
+  const todayStr = formatDateLocal(new Date());
+  const tomorrowStr = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return formatDateLocal(d);
   })();
+
+  const activeDateStr = selectedDayMode === 'today' ? todayStr : tomorrowStr;
 
   // Greeting based on time of day
   const greeting = (() => {
@@ -68,13 +80,26 @@ export const HomeTab: React.FC = () => {
     return 'مساء الخير';
   })();
 
-  const loadTodayMeals = async (showSpinner = false) => {
+  const loadDayMeals = async (showSpinner = false, dateStr = activeDateStr) => {
     if (showSpinner) setLoading(true);
     try {
-      const items = await api.getMealPlans(todayStr, todayStr);
-      const filtered = items.filter((it) => it.plan_date === todayStr);
+      const items = await api.getMealPlans(dateStr, dateStr);
+      const filtered = items.filter((it) => it.plan_date === dateStr);
       filtered.sort((a, b) => (slotOrder[a.slot] || 99) - (slotOrder[b.slot] || 99));
       setTodayItems(filtered);
+
+      // Auto-switch from Today to Tomorrow once all of Today's meals are prepared or skipped
+      if (dateStr === todayStr) {
+        const allDone = filtered.length > 0 && filtered.every((it) => it.is_prepared || it.is_skipped);
+        if (allDone) {
+          if (autoSwitchedForDateRef.current !== todayStr) {
+            autoSwitchedForDateRef.current = todayStr;
+            setSelectedDayMode('tomorrow');
+          }
+        } else {
+          autoSwitchedForDateRef.current = null;
+        }
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -83,8 +108,8 @@ export const HomeTab: React.FC = () => {
   };
 
   useEffect(() => {
-    loadTodayMeals(todayItems.length === 0);
-  }, [refreshKey]);
+    loadDayMeals(todayItems.length === 0, activeDateStr);
+  }, [refreshKey, activeDateStr]);
 
   const isDaySkipped = todayItems.length > 0 && todayItems.every((it) => it.is_skipped);
 
@@ -93,12 +118,16 @@ export const HomeTab: React.FC = () => {
     // Optimistic update keeps scroll position completely intact
     setTodayItems((prev) => prev.map((it) => ({ ...it, is_skipped: nextSkip })));
     try {
-      await api.skipDay(todayStr, nextSkip);
-      loadTodayMeals(false);
+      await api.skipDay(activeDateStr, nextSkip);
+      loadDayMeals(false, activeDateStr);
       showToast(
         nextSkip
-          ? 'تم تخطي وجبات اليوم وإعادتها لرصيد الشهر'
-          : 'تم إلغاء تخطي وجبات اليوم واحتسابها من الرصيد',
+          ? selectedDayMode === 'today'
+            ? 'تم تخطي وجبات اليوم وإعادتها لرصيد الشهر'
+            : 'تم تخطي وجبات غد وإعادتها لرصيد الشهر'
+          : selectedDayMode === 'today'
+            ? 'تم إلغاء تخطي وجبات اليوم واحتسابها من الرصيد'
+            : 'تم إلغاء تخطي وجبات غد واحتسابها من الرصيد',
         'info'
       );
     } catch (err: any) {
@@ -107,7 +136,7 @@ export const HomeTab: React.FC = () => {
         err.message || 'إحدى وجبات هذا اليوم استُنفد رصيدها الشهري في أيام أخرى.',
         'يرجى مراجعة رصيد استخدام الأكلات في جدول الشهر أولاً.'
       );
-      loadTodayMeals(false);
+      loadDayMeals(false, activeDateStr);
     }
   };
 
@@ -128,7 +157,7 @@ export const HomeTab: React.FC = () => {
         is_skipped: nextSkipped,
       });
       triggerRefresh();
-      loadTodayMeals(false);
+      loadDayMeals(false, activeDateStr);
       showToast(
         nextSkipped
           ? 'تم تخطي الوجبة وإعادتها لرصيد الاستخدام الشهري'
@@ -141,7 +170,7 @@ export const HomeTab: React.FC = () => {
         err.message || 'تم استنفاد الحد الأقصى لاختيار هذه الأكلة لهذا الشهر في أيام أخرى.',
         'لإتاحة فك التخطي، يرجى حذف الأكلة أو تخطيها من أحد الأيام الأخرى لتوفير رصيد استخدام.'
       );
-      loadTodayMeals(false);
+      loadDayMeals(false, activeDateStr);
     }
   };
 
@@ -153,11 +182,11 @@ export const HomeTab: React.FC = () => {
     try {
       await api.unprepareMeal(id);
       triggerRefresh();
-      loadTodayMeals(false);
+      loadDayMeals(false, activeDateStr);
       showToast('تم التراجع عن التحضير واستعادة المكونات للمخزن', 'info');
     } catch (err: any) {
       showToast(err.message || 'فشل التراجع عن التحضير', 'error');
-      loadTodayMeals(false);
+      loadDayMeals(false, activeDateStr);
     }
   };
 
@@ -166,11 +195,11 @@ export const HomeTab: React.FC = () => {
     try {
       await api.prepareMeal(item.id);
       triggerRefresh();
-      loadTodayMeals(false);
+      loadDayMeals(false, activeDateStr);
       showToast('تم تحضير الوجبة وخصم المواد بنجاح', 'success');
     } catch (err: any) {
       showToast(err.message || 'فشل تحضير الوجبة', 'error');
-      loadTodayMeals(false);
+      loadDayMeals(false, activeDateStr);
     } finally {
       setPreparingId(null);
     }
@@ -181,9 +210,9 @@ export const HomeTab: React.FC = () => {
     setTodayItems((prev) => prev.filter((it) => it.id !== id));
     try {
       await api.deleteMealPlanItem(id);
-      loadTodayMeals(false);
+      loadDayMeals(false, activeDateStr);
     } catch (err: any) {
-      loadTodayMeals(false);
+      loadDayMeals(false, activeDateStr);
     }
   };
 
@@ -388,15 +417,21 @@ export const HomeTab: React.FC = () => {
         {/* Meals Schedule Section */}
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
-          <h3 className="font-bold text-gray-900 dark:text-white text-lg flex items-center gap-2">
-            <span>وجبات اليوم</span>
+          <button
+            type="button"
+            onClick={() => setSelectedDayMode((prev) => (prev === 'today' ? 'tomorrow' : 'today'))}
+            className="font-bold text-gray-900 dark:text-white text-lg flex items-center gap-2 hover:text-brand-600 dark:hover:text-brand-400 active:scale-95 transition-all cursor-pointer"
+            title={selectedDayMode === 'today' ? 'انقر لعرض وجبات يوم غد' : 'انقر للرجوع لوجبات اليوم'}
+          >
+            <span>{selectedDayMode === 'today' ? 'وجبات اليوم' : 'وجبات غد'}</span>
             <span className="text-sm font-bold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950 px-2.5 py-0.5 rounded-full">
               {todayItems.length}
             </span>
-          </h3>
+            <ArrowLeftRight className="w-3.5 h-3.5 text-gray-400" />
+          </button>
 
           <div className="flex items-center gap-2">
-            {/* Toggle Skip Day button next to today's meals */}
+            {/* Toggle Skip Day button next to selected day's meals */}
             <button
               type="button"
               onClick={handleToggleSkipDay}
@@ -405,7 +440,7 @@ export const HomeTab: React.FC = () => {
                   ? 'border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50'
                   : 'border-gray-200 dark:border-gray-750 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300'
                 }`}
-              title={isDaySkipped ? 'إلغاء تخطي اليوم واستعادة الوجبات' : 'تخطي وجبات اليوم'}
+              title={isDaySkipped ? 'إلغاء التخطي واستعادة الوجبات' : selectedDayMode === 'today' ? 'تخطي وجبات اليوم' : 'تخطي وجبات غد'}
             >
               {isDaySkipped ? (
                 <>
@@ -415,7 +450,7 @@ export const HomeTab: React.FC = () => {
               ) : (
                 <>
                   <SkipForward className="w-4 h-4 text-amber-500" />
-                  <span>تخطي اليوم</span>
+                  <span>{selectedDayMode === 'today' ? 'تخطي اليوم' : 'تخطي غد'}</span>
                 </>
               )}
             </button>
@@ -425,7 +460,9 @@ export const HomeTab: React.FC = () => {
         {loading ? (
           <div className="flex flex-col items-center justify-center p-12 text-gray-400">
             <div className="w-8 h-8 border-3 border-brand-500 border-t-transparent rounded-full animate-spin mb-3" />
-            <p className="text-lg font-bold">جاري جلب وجبات اليوم...</p>
+            <p className="text-lg font-bold">
+              {selectedDayMode === 'today' ? 'جاري جلب وجبات اليوم...' : 'جاري جلب وجبات غد...'}
+            </p>
           </div>
         ) : todayItems.length === 0 ? (
           <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 text-center border border-gray-100 dark:border-gray-800 shadow-sm">
@@ -433,7 +470,7 @@ export const HomeTab: React.FC = () => {
               🍽️
             </div>
             <h4 className="font-bold text-gray-800 dark:text-gray-200 text-xl sm:text-2xl mb-2">
-              لا توجد وجبات مجدولة لليوم
+              {selectedDayMode === 'today' ? 'لا توجد وجبات مجدولة لليوم' : 'لا توجد وجبات مجدولة ليوم غد'}
             </h4>
             <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 max-w-xs mx-auto">
               يمكنك تعيين وجبات هذا اليوم من خلال جدول الوجبات الشهري.

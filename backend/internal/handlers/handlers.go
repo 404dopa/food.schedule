@@ -478,56 +478,65 @@ func (h *AppHandler) GetMealPlans(c *gin.Context) {
 		endDate = now.AddDate(0, 0, 7).Format("2006-01-02")
 	}
 
-	// Real-time synchronization: Mirror today's monthly schedule items strictly into today's meal plan
+	// Real-time synchronization: Mirror monthly schedule items for today and tomorrow into meal plans
 	now := time.Now()
-	todayStr := now.Format("2006-01-02")
-	if startDate <= todayStr && endDate >= todayStr {
-		monthlyAll, _ := h.mealPlanRepo.GetMonthlySchedule(householdID)
-		validScheduleSlots := make(map[models.MealSlot]models.MonthlyScheduleItem)
-		for _, m := range monthlyAll {
-			if m.DayOfMonth == now.Day() {
-				validScheduleSlots[m.Slot] = m
-			}
-		}
+	targetDates := []time.Time{now, now.AddDate(0, 0, 1)}
+	var monthlyAll []models.MonthlyScheduleItem
+	monthlyLoaded := false
 
-		plan, pErr := h.mealPlanRepo.GetOrCreateActivePlan(householdID, todayStr, todayStr)
-		if pErr == nil && plan != nil {
-			todayExisting, _ := h.mealPlanRepo.GetItemsByDateRange(householdID, todayStr, todayStr)
-			handledSlots := make(map[models.MealSlot]bool)
-			for _, ti := range todayExisting {
-				m, inSchedule := validScheduleSlots[ti.Slot]
-				if inSchedule && !handledSlots[ti.Slot] {
-					handledSlots[ti.Slot] = true
-					if ti.RecipeID != m.RecipeID || ti.IsSkipped != m.IsSkipped || ti.IsPrepared != m.IsPrepared || ti.Servings != m.Servings || ti.Notes != m.Notes {
-						_ = h.mealPlanRepo.DB().Model(&models.MealPlanItem{}).Where("id = ?", ti.ID).Updates(map[string]interface{}{
-							"recipe_id":   m.RecipeID,
-							"is_skipped":  m.IsSkipped,
-							"is_prepared": m.IsPrepared,
-							"servings":    m.Servings,
-							"notes":       m.Notes,
-						})
-					}
-				} else {
-					// Slot is NOT in today's monthly schedule or is a duplicate: delete it so it never appears in HomeTab!
-					_ = h.mealPlanRepo.DeleteItem(ti.ID)
+	for _, targetDate := range targetDates {
+		targetStr := targetDate.Format("2006-01-02")
+		if startDate <= targetStr && endDate >= targetStr {
+			if !monthlyLoaded {
+				monthlyAll, _ = h.mealPlanRepo.GetMonthlySchedule(householdID)
+				monthlyLoaded = true
+			}
+			validScheduleSlots := make(map[models.MealSlot]models.MonthlyScheduleItem)
+			for _, m := range monthlyAll {
+				if m.DayOfMonth == targetDate.Day() {
+					validScheduleSlots[m.Slot] = m
 				}
 			}
 
-			// Any remaining slot from schedule that doesn't exist yet: create it!
-			for slot, m := range validScheduleSlots {
-				if !handledSlots[slot] {
-					newMeal := models.MealPlanItem{
-						BaseModel:  models.BaseModel{ID: uuid.NewString()},
-						MealPlanID: plan.ID,
-						PlanDate:   todayStr,
-						Slot:       m.Slot,
-						RecipeID:   m.RecipeID,
-						Servings:   m.Servings,
-						IsSkipped:  m.IsSkipped,
-						IsPrepared: m.IsPrepared,
-						Notes:      m.Notes,
+			plan, pErr := h.mealPlanRepo.GetOrCreateActivePlan(householdID, targetStr, targetStr)
+			if pErr == nil && plan != nil {
+				existingItems, _ := h.mealPlanRepo.GetItemsByDateRange(householdID, targetStr, targetStr)
+				handledSlots := make(map[models.MealSlot]bool)
+				for _, ti := range existingItems {
+					m, inSchedule := validScheduleSlots[ti.Slot]
+					if inSchedule && !handledSlots[ti.Slot] {
+						handledSlots[ti.Slot] = true
+						if ti.RecipeID != m.RecipeID || ti.IsSkipped != m.IsSkipped || ti.IsPrepared != m.IsPrepared || ti.Servings != m.Servings || ti.Notes != m.Notes {
+							_ = h.mealPlanRepo.DB().Model(&models.MealPlanItem{}).Where("id = ?", ti.ID).Updates(map[string]interface{}{
+								"recipe_id":   m.RecipeID,
+								"is_skipped":  m.IsSkipped,
+								"is_prepared": m.IsPrepared,
+								"servings":    m.Servings,
+								"notes":       m.Notes,
+							})
+						}
+					} else {
+						// Slot is NOT in this day's monthly schedule or is a duplicate: delete it
+						_ = h.mealPlanRepo.DeleteItem(ti.ID)
 					}
-					_ = h.mealPlanRepo.AddItem(&newMeal)
+				}
+
+				// Any remaining slot from schedule that doesn't exist yet: create it!
+				for slot, m := range validScheduleSlots {
+					if !handledSlots[slot] {
+						newMeal := models.MealPlanItem{
+							BaseModel:  models.BaseModel{ID: uuid.NewString()},
+							MealPlanID: plan.ID,
+							PlanDate:   targetStr,
+							Slot:       m.Slot,
+							RecipeID:   m.RecipeID,
+							Servings:   m.Servings,
+							IsSkipped:  m.IsSkipped,
+							IsPrepared: m.IsPrepared,
+							Notes:      m.Notes,
+						}
+						_ = h.mealPlanRepo.AddItem(&newMeal)
+					}
 				}
 			}
 		}
