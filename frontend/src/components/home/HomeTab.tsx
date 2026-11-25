@@ -55,6 +55,7 @@ export const HomeTab: React.FC = () => {
 
   const [selectedDayMode, setSelectedDayMode] = useState<'today' | 'tomorrow'>('today');
   const autoSwitchedForDateRef = useRef<string | null>(null);
+  const mutatingIdsRef = useRef<Set<string>>(new Set());
 
   const formatDateLocal = (d: Date) => {
     const year = d.getFullYear();
@@ -150,10 +151,12 @@ export const HomeTab: React.FC = () => {
   };
 
   const handleToggleSkipMeal = async (item: MealPlanItem) => {
+    if (mutatingIdsRef.current.has(item.id)) return;
     if (item.is_prepared) {
       showToast('يرجى التراجع عن التحضير أولاً قبل التخطي', 'warning');
       return;
     }
+    mutatingIdsRef.current.add(item.id);
     const nextSkipped = !item.is_skipped;
     // Optimistic update
     setAllTwoDayItems((prev) =>
@@ -166,7 +169,6 @@ export const HomeTab: React.FC = () => {
         is_skipped: nextSkipped,
       });
       triggerRefresh();
-      loadDayMeals(false);
       showToast(
         nextSkipped
           ? 'تم تخطي الوجبة وإعادتها لرصيد الاستخدام الشهري'
@@ -180,10 +182,14 @@ export const HomeTab: React.FC = () => {
         'لإتاحة فك التخطي، يرجى حذف الأكلة أو تخطيها من أحد الأيام الأخرى لتوفير رصيد استخدام.'
       );
       loadDayMeals(false);
+    } finally {
+      mutatingIdsRef.current.delete(item.id);
     }
   };
 
   const handleUnprepareMeal = async (id: string) => {
+    if (mutatingIdsRef.current.has(id)) return;
+    mutatingIdsRef.current.add(id);
     // Optimistic update
     setAllTwoDayItems((prev) =>
       prev.map((it) => (it.id === id ? { ...it, is_prepared: false } : it))
@@ -191,30 +197,44 @@ export const HomeTab: React.FC = () => {
     try {
       await api.unprepareMeal(id);
       triggerRefresh();
-      loadDayMeals(false);
       showToast('تم التراجع عن التحضير واستعادة المكونات للمخزن', 'info');
     } catch (err: any) {
       showToast(err.message || 'فشل التراجع عن التحضير', 'error');
       loadDayMeals(false);
+    } finally {
+      mutatingIdsRef.current.delete(id);
     }
   };
 
   const handleDirectPrepare = async (item: MealPlanItem) => {
-    setPreparingId(item.id);
+    if (mutatingIdsRef.current.has(item.id)) return;
+    mutatingIdsRef.current.add(item.id);
     // Optimistic update for instant UI feedback
-    setAllTwoDayItems((prev) =>
-      prev.map((it) => (it.id === item.id ? { ...it, is_prepared: true, is_skipped: false } : it))
-    );
+    setAllTwoDayItems((prev) => {
+      const next = prev.map((it) =>
+        it.id === item.id ? { ...it, is_prepared: true, is_skipped: false } : it
+      );
+      const todayOnly = next.filter((it) => it.plan_date === todayStr);
+      if (
+        activeDateStr === todayStr &&
+        todayOnly.length > 0 &&
+        todayOnly.every((it) => it.is_prepared || it.is_skipped) &&
+        autoSwitchedForDateRef.current !== todayStr
+      ) {
+        autoSwitchedForDateRef.current = todayStr;
+        setSelectedDayMode('tomorrow');
+      }
+      return next;
+    });
     try {
       await api.prepareMeal(item.id);
       triggerRefresh();
-      loadDayMeals(false);
       showToast('تم تحضير الوجبة وخصم المواد بنجاح', 'success');
     } catch (err: any) {
       showToast(err.message || 'فشل تحضير الوجبة', 'error');
       loadDayMeals(false);
     } finally {
-      setPreparingId(null);
+      mutatingIdsRef.current.delete(item.id);
     }
   };
 

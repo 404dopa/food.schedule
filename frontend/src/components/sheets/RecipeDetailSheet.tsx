@@ -28,6 +28,8 @@ export const RecipeDetailSheet: React.FC<Props> = ({ recipe, mealItem, onSuccess
   const [isSkipped, setIsSkipped] = useState(!!mealItem?.is_skipped);
   const [isPrepared, setIsPrepared] = useState(!!mealItem?.is_prepared);
   const [isPreparing, setIsPreparing] = useState(false);
+  const [isSkipping, setIsSkipping] = useState(false);
+  const isMutating = isPreparing || isSkipping;
 
   const mainRef = useRef<HTMLDivElement>(null);
   const [contentMinHeight, setContentMinHeight] = useState<number | undefined>(undefined);
@@ -62,43 +64,49 @@ export const RecipeDetailSheet: React.FC<Props> = ({ recipe, mealItem, onSuccess
   };
 
   const handleToggleSkipMeal = async () => {
-    if (!mealItem) return;
+    if (!mealItem || isMutating) return;
     if (isPrepared) {
       showToast('يرجى التراجع عن التحضير أولاً قبل التخطي', 'warning');
       return;
     }
     const nextSkipped = !isSkipped;
+    setIsSkipping(true);
     setIsSkipped(nextSkipped);
+    mealItem.is_skipped = nextSkipped;
+    mealItem.is_prepared = false;
     try {
       await api.updateMealPlanItem(mealItem.id, {
         ...mealItem,
         is_prepared: false,
         is_skipped: nextSkipped,
       });
-      mealItem.is_skipped = nextSkipped;
-      mealItem.is_prepared = false;
       triggerRefresh();
       onSuccess?.();
     } catch (err: any) {
       setIsSkipped(!nextSkipped);
+      mealItem.is_skipped = !nextSkipped;
       showToast(err.message || 'فشل تغيير حالة التخطي', 'error');
+    } finally {
+      setIsSkipping(false);
     }
   };
 
   const handlePrepareMeal = async () => {
-    if (!mealItem) return;
+    if (!mealItem || isMutating) return;
+    // Optimistic update for instant response
+    setIsPrepared(true);
+    setIsSkipped(false);
+    mealItem.is_prepared = true;
+    mealItem.is_skipped = false;
     setIsPreparing(true);
     try {
       await api.prepareMeal(mealItem.id);
-      setIsPrepared(true);
-      setIsSkipped(false);
-      mealItem.is_prepared = true;
-      mealItem.is_skipped = false;
       showToast(`تم تحضير وجبة "${recipe.name_ar}" وخصم المواد بنجاح`, 'success');
       triggerRefresh();
       onSuccess?.();
     } catch (err: any) {
       setIsPrepared(false);
+      mealItem.is_prepared = false;
       showToast(err.message || 'فشل تحضير الوجبة', 'error');
     } finally {
       setIsPreparing(false);
@@ -106,17 +114,19 @@ export const RecipeDetailSheet: React.FC<Props> = ({ recipe, mealItem, onSuccess
   };
 
   const handleUnprepareMeal = async () => {
-    if (!mealItem) return;
+    if (!mealItem || isMutating) return;
+    // Optimistic update for instant response
+    setIsPrepared(false);
+    mealItem.is_prepared = false;
     setIsPreparing(true);
     try {
       await api.unprepareMeal(mealItem.id);
-      setIsPrepared(false);
-      mealItem.is_prepared = false;
       showToast(`تم التراجع عن تحضير "${recipe.name_ar}" واستعادة المواد بنجاح`, 'info');
       triggerRefresh();
       onSuccess?.();
     } catch (err: any) {
       setIsPrepared(true);
+      mealItem.is_prepared = true;
       showToast(err.message || 'فشل التراجع عن التحضير', 'error');
     } finally {
       setIsPreparing(false);
@@ -317,7 +327,8 @@ export const RecipeDetailSheet: React.FC<Props> = ({ recipe, mealItem, onSuccess
             <button
               type="button"
               onClick={handleToggleSkipMeal}
-              className={`w-full py-3 px-3 rounded-2xl border transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs font-bold ${
+              disabled={isMutating}
+              className={`w-full py-3 px-3 rounded-2xl border transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs font-bold disabled:opacity-50 ${
                 isSkipped
                   ? 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700/60 text-amber-700 dark:text-amber-300'
                   : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-750 border-gray-200 dark:border-gray-750 text-gray-700 dark:text-gray-200'
@@ -342,7 +353,7 @@ export const RecipeDetailSheet: React.FC<Props> = ({ recipe, mealItem, onSuccess
             <button
               type="button"
               onClick={handlePrepareMeal}
-              disabled={isPreparing || isSkipped}
+              disabled={isMutating || isSkipped}
               className="w-full py-3.5 px-4 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white text-sm font-extrabold rounded-2xl shadow-md shadow-brand-600/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
               <ChefHat className={`w-4 h-4 ${isPreparing ? 'animate-bounce' : ''}`} />
@@ -352,7 +363,7 @@ export const RecipeDetailSheet: React.FC<Props> = ({ recipe, mealItem, onSuccess
             <button
               type="button"
               onClick={handleUnprepareMeal}
-              disabled={isPreparing}
+              disabled={isMutating}
               className="w-full py-3.5 px-4 rounded-2xl border border-emerald-300 dark:border-emerald-700/60 bg-emerald-50 hover:bg-amber-50 dark:bg-emerald-950/40 dark:hover:bg-amber-950/40 text-emerald-800 hover:text-amber-700 dark:text-emerald-300 dark:hover:text-amber-300 text-sm font-bold transition-all active:scale-95 flex items-center justify-center gap-2 shadow-sm group disabled:opacity-50"
               title="اضغط للتراجع عن تحضير الوجبة واستعادة المواد للمخزون"
             >
